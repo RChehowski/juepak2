@@ -1,9 +1,8 @@
 package eu.chakhouski.juepak;
 
-import eu.chakhouski.juepak.annotations.StaticSize;
-import eu.chakhouski.juepak.annotations.UEPojo;
+import eu.chakhouski.juepak.util.UE4Deserializer;
 
-import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
@@ -69,5 +68,41 @@ public class FPakEntry
             SerializedSize += sizeof(long.class);
         }
         return SerializedSize;
+    }
+
+    /**
+     * Serializes FPakEntry struct.
+     *
+     * @param Ar Archive to serialize data with.
+     * @param Entry Data to serialize.
+     */
+    void DeSerialize(ByteBuffer Ar, int Version)
+    {
+        Offset = UE4Deserializer.ReadLong(Ar);
+        Size = UE4Deserializer.ReadLong(Ar);
+        UncompressedSize = UE4Deserializer.ReadLong(Ar);
+        CompressionMethod = UE4Deserializer.ReadInt(Ar);
+
+
+        if (Version <= FPakInfo.PakFile_Version_Initial)
+        {
+            assert false;
+//            FDateTime Timestamp;
+//            Ar << Timestamp;
+        }
+
+        Ar.get(Hash);
+
+        if (Version >= FPakInfo.PakFile_Version_CompressionEncryption)
+        {
+            if (CompressionMethod != COMPRESS_None)
+            {
+                assert false;
+//                Ar << CompressionBlocks;
+            }
+
+            bEncrypted = Ar.get();
+            CompressionBlockSize = UE4Deserializer.ReadInt(Ar);
+        }
     }
 }

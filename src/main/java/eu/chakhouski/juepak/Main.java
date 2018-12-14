@@ -10,10 +10,5 @@ public class Main
         final String file = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor.pak";
 
         final FPakPlatformFile fPakPlatformFile = new FPakPlatformFile(file);
-
-        final int sizeof = Sizeof.sizeof(FPakCompressedBlock.class);
-
-
-        System.out.println("Hello");
     }
 }

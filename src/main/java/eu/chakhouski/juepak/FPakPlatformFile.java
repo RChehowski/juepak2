@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.util.Misc;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.io.File;
@@ -12,22 +13,22 @@ import java.nio.channels.FileChannel.MapMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class FPakPlatformFile
 {
     /** Pak filename. */
     private final String PakFilename;
-
     /** Pak file info (trailer). */
     private final FPakInfo Info = new FPakInfo();
-
     /** TotalSize of the pak file */
     private long CachedTotalSize;
-
     /** Mount point. */
     private String MountPoint;
-
+    /** Info on all files stored in pak. */
+    private final List<FPakEntry> Files = new ArrayList<>();
     /** The number of file entries in the pak file */
     private int NumEntries;
 
@@ -87,11 +88,11 @@ public class FPakPlatformFile
 
     private void LoadIndex(FileChannel channel) throws IOException, NoSuchAlgorithmException
     {
-        final MappedByteBuffer indexMap = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
-        indexMap.order(ByteOrder.LITTLE_ENDIAN);
+        final MappedByteBuffer IndexMap = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
+        IndexMap.order(ByteOrder.LITTLE_ENDIAN);
 
         final byte[] IndexBytes = new byte[(int)Info.IndexSize];
-        indexMap.get(IndexBytes);
+        IndexMap.get(IndexBytes);
 
         final byte[] IndexHash = MessageDigest.getInstance("SHA-1").digest(IndexBytes);
 
@@ -99,14 +100,29 @@ public class FPakPlatformFile
             throw new RuntimeException("Corrupt index (SHA-1 mismatch)");
 
 
-        indexMap.position(0);
-        MountPoint = UE4Deserializer.ReadString(indexMap);
-        NumEntries = UE4Deserializer.ReadInt(indexMap);
+        IndexMap.position(0);
+        MountPoint = UE4Deserializer.ReadString(IndexMap);
+        NumEntries = UE4Deserializer.ReadInt(IndexMap);
 
 
+        for (int EntryIndex = 0; EntryIndex < NumEntries; EntryIndex++)
+        {
+            // Serialize from memory.
+            final FPakEntry Entry = new FPakEntry();
+            String Filename;
+            Filename = UE4Deserializer.ReadString(IndexMap);
+            Entry.DeSerialize(IndexMap, Info.Version);
 
+            // Add new file info.
+            Files.add(Entry);
 
-        System.out.println(MountPoint);
+            System.out.println(String.join(" ", Arrays.asList(
+                Filename,
+                "offset: " + Entry.Offset,
+                "size: " + Entry.Size + " bytes",
+                "sha1: " + Misc.bytesToHex(Entry.Hash)
+            )));
+        }
     }
 
 

@@ -167,4 +167,4 @@ $RECYCLE.BIN/
 # IML and IDEA are completely ignored
 *.iml
 
-.idea
+.idea/

@@ -11,20 +11,40 @@ public class UE4Deserializer
         // Ensure order is little endian
         b.order(ByteOrder.LITTLE_ENDIAN);
 
-        final int numChars = b.getInt();
+        int SaveNum = b.getInt();
 
-        final byte[] strBytes = new byte[numChars];
+        boolean LoadUCS2Char = SaveNum < 0;
+        if (LoadUCS2Char)
+        {
+            SaveNum = -SaveNum;
+            SaveNum *= 2;
+        }
+
+        final byte[] strBytes = new byte[SaveNum];
         b.get(strBytes);
 
-        final String str = new String(strBytes, StandardCharsets.UTF_8);
-        return str;
+        // Create a string excluding null characters
+        final String Result;
+        if (LoadUCS2Char)
+        {
+            Result = new String(strBytes, 0, SaveNum, StandardCharsets.UTF_16LE);
+        }
+        else
+        {
+            Result = new String(strBytes, 0, SaveNum, StandardCharsets.US_ASCII);
+        }
+
+        return Result.replaceAll("\0", "");
     }
 
     public static int ReadInt(ByteBuffer b)
     {
-        // Ensure order is little endian
-        b.order(ByteOrder.LITTLE_ENDIAN);
+        return b.order(ByteOrder.LITTLE_ENDIAN).getInt();
+    }
 
-        return b.getInt();
+
+    public static long ReadLong(ByteBuffer b)
+    {
+        return b.order(ByteOrder.LITTLE_ENDIAN).getLong();
     }
 }
