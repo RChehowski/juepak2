@@ -12,23 +12,23 @@ import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 public class FPakEntry
 {
     /** Offset into pak file where the file is stored.*/
-    long Offset;
+    public long Offset;
     /** Serialized file size. */
-    long Size;
+    public long Size;
     /** Uncompressed file size. */
-    long UncompressedSize;
+    public long UncompressedSize;
     /** Compression method. */
-    int CompressionMethod;
+    public int CompressionMethod;
     /** File SHA1 value. */
-    byte[] Hash = new byte[20];
+    public byte[] Hash = new byte[20];
     /** Array of compression blocks that describe how to decompress this pak entry. */
-    List<FPakCompressedBlock> CompressionBlocks;
+    public List<FPakCompressedBlock> CompressionBlocks;
     /** Size of a compressed block in the file. */
-    int CompressionBlockSize;
+    public int CompressionBlockSize;
     /** True is file is encrypted. */
-    byte bEncrypted;
+    public byte bEncrypted;
     /** Flag is set to true when FileHeader has been checked against PakHeader. It is not serialized. */
-    boolean Verified;
+    public boolean Verified;
 
     /**
      * Constructor.
