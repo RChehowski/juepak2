@@ -1,9 +1,14 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.StaticSize;
+import eu.chakhouski.juepak.annotations.UEPojo;
+
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static eu.chakhouski.juepak.Sizeof.sizeof;
 
+@UEPojo
 public class FPakInfo
 {
     /**
@@ -40,10 +45,11 @@ public class FPakInfo
     /** Size (in bytes) of pak file index. */
     public long IndexSize;
     /** Index SHA1 value. */
+    @StaticSize(20)
     public byte[] IndexHash = new byte[20];
     /** Flag indicating if the pak index has been encrypted. */
-    public boolean bEncryptedIndex;
- 
+    public byte bEncryptedIndex;
+
     /**
      * Constructor.
      */
@@ -53,7 +59,7 @@ public class FPakInfo
 		this.Version = PakFile_Version_Latest;
 		this.IndexOffset = -1;
 		this.IndexSize = 0;
-		this.bEncryptedIndex = false;
+		this.bEncryptedIndex = 0;
 
         // FMemory::Memset(IndexHash, 0, sizeof(IndexHash));
         Arrays.fill(IndexHash, (byte)0);
@@ -74,5 +80,17 @@ public class FPakInfo
     long HasRelativeCompressedChunkOffsets()
     {
         return Version >= PakFile_Version_RelativeChunkOffsets ? 1 : 0;
+    }
+
+    void Deserialize(ByteBuffer b)
+    {
+        bEncryptedIndex = b.get();
+
+        Magic = b.getInt();
+        Version = b.getInt();
+        IndexOffset = b.getLong();
+        IndexSize = b.getLong();
+
+        b.get(IndexHash);
     }
 }
