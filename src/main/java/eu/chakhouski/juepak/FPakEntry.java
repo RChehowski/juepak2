@@ -51,7 +51,7 @@ public class FPakEntry
      *
      * @return Serialized data size.
      */
-    long GetSerializedSize(int Version)
+    public long GetSerializedSize(int Version)
     {
         long SerializedSize = sizeof(Offset) + sizeof(Size) + sizeof(UncompressedSize) + sizeof(CompressionMethod) + sizeof(Hash);
         if (Version >= FPakInfo.PakFile_Version_CompressionEncryption)

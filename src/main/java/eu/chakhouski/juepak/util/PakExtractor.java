@@ -1,6 +1,8 @@
 package eu.chakhouski.juepak.util;
 
 import eu.chakhouski.juepak.FPakEntry;
+import eu.chakhouski.juepak.FPakFile;
+import eu.chakhouski.juepak.FPakInfo;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -15,7 +17,7 @@ import java.util.function.BiConsumer;
 
 public class PakExtractor
 {
-    public static void Extract(Path PathToPakFile, Map<String, FPakEntry> ItemsToExtract, Path RootPath)
+    public static void Extract(FPakFile PakFile, Path PathToPakFile, Map<String, FPakEntry> ItemsToExtract, Path RootPath)
     {
         final byte[] buffer = new byte[64 * 1024];
 
@@ -36,7 +38,8 @@ public class PakExtractor
                     Files.createDirectories(AbsoluteDir);
                 }
 
-                Channel.position(Entry.Offset);
+                // !!! Note that we need to skip the freaking FPakEntry once again !!!
+                Channel.position(Entry.Offset + Entry.GetSerializedSize(PakFile.Info.Version));
 
                 long numBytesToRead = Entry.UncompressedSize;
                 try (final FileOutputStream Fos = new FileOutputStream(AbsolutePath.toFile()))

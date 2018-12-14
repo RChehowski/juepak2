@@ -32,7 +32,7 @@ public class Main
             "sha1: " + Misc.bytesToHex(Entry.Hash)
         ))));
 
-        PakExtractor.Extract(Paths.get(file), Entries, Paths.get("C:\\Users\\ASUS\\Desktop\\Extract"));
+        PakExtractor.Extract(fPakFile, Paths.get(file), Entries, Paths.get("C:\\Users\\ASUS\\Desktop\\Extract"));
 
 
 

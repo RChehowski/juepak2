@@ -26,7 +26,7 @@ public class FPakFile implements Iterable<FPakEntry>
     /** Pak filename. */
     private final String PakFilename;
     /** Pak file info (trailer). */
-    private final FPakInfo Info = new FPakInfo();
+    public final FPakInfo Info = new FPakInfo();
     /** TotalSize of the pak file */
     private long CachedTotalSize;
     /** Mount point. */
