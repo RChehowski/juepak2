@@ -70,13 +70,8 @@ public class FPakEntry
         return SerializedSize;
     }
 
-    /**
-     * Serializes FPakEntry struct.
-     *
-     * @param Ar Archive to serialize data with.
-     * @param Entry Data to serialize.
-     */
-    void DeSerialize(ByteBuffer Ar, int Version)
+
+    void Deserialize(ByteBuffer Ar, int Version)
     {
         Offset = UE4Deserializer.ReadLong(Ar);
         Size = UE4Deserializer.ReadLong(Ar);
@@ -86,7 +81,8 @@ public class FPakEntry
 
         if (Version <= FPakInfo.PakFile_Version_Initial)
         {
-            assert false;
+            throw new IllegalStateException("Too old pak revision");
+
 //            FDateTime Timestamp;
 //            Ar << Timestamp;
         }
@@ -97,7 +93,8 @@ public class FPakEntry
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                assert false;
+                throw new IllegalStateException("No support for compressed blocks yet");
+
 //                Ar << CompressionBlocks;
             }
 

@@ -3,14 +3,12 @@ package eu.chakhouski.juepak;
 import eu.chakhouski.juepak.util.Misc;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -111,7 +109,7 @@ public class FPakPlatformFile
             final FPakEntry Entry = new FPakEntry();
             String Filename;
             Filename = UE4Deserializer.ReadString(IndexMap);
-            Entry.DeSerialize(IndexMap, Info.Version);
+            Entry.Deserialize(IndexMap, Info.Version);
 
             // Add new file info.
             Files.add(Entry);
