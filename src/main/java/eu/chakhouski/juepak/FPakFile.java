@@ -18,7 +18,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FPakPlatformFile
+import static eu.chakhouski.juepak.ue4.FPaths.INDEX_NONE;
+import static eu.chakhouski.juepak.ue4.FStringUtils.Left;
+
+public class FPakFile implements Iterable<FPakEntry>
 {
     /** Pak filename. */
     private final String PakFilename;
@@ -31,14 +34,26 @@ public class FPakPlatformFile
     /** Info on all files stored in pak. */
     private final List<FPakEntry> Files = new ArrayList<>();
     /** Pak Index organized as a map of directories for faster Directory iteration. Valid only when bFilenamesRemoved == false. */
-    Map<String, Map<String, FPakEntry>> Index;
+    Map<String, Map<String, FPakEntry>> Index = new HashMap<>();
 
 
     /** The number of file entries in the pak file */
     private int NumEntries;
 
 
-    public FPakPlatformFile(final String pakFilename)
+
+    /**
+     * Gets pak file index.
+     *
+     * @return Pak index.
+     */
+    Map<String, Map<String, FPakEntry>> GetIndex()
+    {
+        return Index;
+    }
+
+
+    public FPakFile(final String pakFilename)
     {
         PakFilename = pakFilename;
 
@@ -158,39 +173,45 @@ public class FPakPlatformFile
 
 
                 // add the parent directories up to the mount point
-//                while (!(MountPoint.equals(Path))
-//                {
-//                    Path = Path.Left(Path.Len() - 1);
-//                    int32 Offset = 0;
-//                    if (Path.FindLastChar('/', Offset))
-//                    {
-//                        Path = Path.Left(Offset);
-//                        MakeDirectoryFromPath(Path);
-//                        if (Index.Find(Path) == NULL)
-//                        {
-//                            Index.Add(Path);
-//                        }
-//                    }
-//                    else
-//                    {
-//                        Path = MountPoint;
-//                    }
-//                }
+                while (!(MountPoint.equals(Path)))
+                {
+                    Path = Left(Path, Path.length() - 1);
+
+                    int Offset = Path.lastIndexOf('/');
+                    if (Offset != INDEX_NONE)
+                    {
+                        Path = Left(Path, Offset);
+                        Path = MakeDirectoryFromPath(Path);
+                        if (!Index.containsKey(Path))
+                        {
+                            Index.put(Path, new HashMap<>());
+                        }
+                    }
+                    else
+                    {
+                        Path = MountPoint;
+                    }
+                }
             }
 
-
-
-            System.out.println(String.join(" ", Arrays.asList(
-                Filename,
-                "offset: " + Entry.Offset,
-                "size: " + Entry.Size + " bytes",
-                "sha1: " + Misc.bytesToHex(Entry.Hash)
-            )));
+//            System.out.println(String.join(" ", Arrays.asList(
+//                Filename,
+//                "offset: " + Entry.Offset,
+//                "size: " + Entry.Size + " bytes",
+//                "sha1: " + Misc.bytesToHex(Entry.Hash)
+//            )));
         }
+
+        System.out.println("Hello");
     }
 
 
 
+    @Override
+    public FFileIterator iterator()
+    {
+        return new FFileIterator(this);
+    }
 
 
     public static String MakeDirectoryFromPath(String Path)

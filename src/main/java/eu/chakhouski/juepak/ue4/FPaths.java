@@ -4,7 +4,7 @@ import java.util.function.Predicate;
 
 public class FPaths
 {
-    private static int INDEX_NONE = -1;
+    public static int INDEX_NONE = -1;
 
     private static Predicate<Character> IsSlashOrBackslash      = C -> C == '\\' || C == '/';
     private static Predicate<Character> IsNotSlashOrBackslash   = C -> C != '\\' && C != '/';
@@ -44,7 +44,7 @@ public class FPaths
     {
         assert Count >= 0 && Count <= Data.length();
 
-        for (int i = 0; i < Count; i++)
+        for (int i = Count - 1; i >= 0; i--)
         {
             if (Pred.test(Data.charAt(i)))
             {
