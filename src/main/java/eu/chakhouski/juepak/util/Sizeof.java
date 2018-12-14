@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak;
+package eu.chakhouski.juepak.util;
 
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.annotations.UEPojo;

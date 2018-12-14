@@ -7,7 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
-import static eu.chakhouski.juepak.Sizeof.sizeof;
+import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 public class FPakEntry
 {

@@ -7,7 +7,7 @@ public class Main
         final FPakInfo fPakInfo = new FPakInfo();
 
 
-        final String file = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor.pak";
+        final String file = "/Users/netherwire/Downloads/BloodOfHeroes_Client_Mac_139_master_shipping/boh_gdc.app/Contents/UE4/boh_gdc/Content/Paks/boh_gdc-MacNoEditor.pak";
 
         final FPakPlatformFile fPakPlatformFile = new FPakPlatformFile(file);
     }

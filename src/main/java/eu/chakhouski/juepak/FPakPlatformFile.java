@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.util.Misc;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
@@ -13,7 +14,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FPakPlatformFile
 {
@@ -27,6 +30,10 @@ public class FPakPlatformFile
     private String MountPoint;
     /** Info on all files stored in pak. */
     private final List<FPakEntry> Files = new ArrayList<>();
+    /** Pak Index organized as a map of directories for faster Directory iteration. Valid only when bFilenamesRemoved == false. */
+    Map<String, Map<String, FPakEntry>> Index;
+
+
     /** The number of file entries in the pak file */
     private int NumEntries;
 
@@ -86,21 +93,39 @@ public class FPakPlatformFile
 
     private void LoadIndex(FileChannel channel) throws IOException, NoSuchAlgorithmException
     {
-        final MappedByteBuffer IndexMap = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
-        IndexMap.order(ByteOrder.LITTLE_ENDIAN);
+        final MappedByteBuffer IndexMapping = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
+        IndexMapping.order(ByteOrder.LITTLE_ENDIAN);
 
         final byte[] IndexBytes = new byte[(int)Info.IndexSize];
-        IndexMap.get(IndexBytes);
+        IndexMapping.get(IndexBytes);
 
         final byte[] IndexHash = MessageDigest.getInstance("SHA-1").digest(IndexBytes);
 
         if (!Arrays.equals(IndexHash, Info.IndexHash))
-            throw new RuntimeException("Corrupt index (SHA-1 mismatch)");
+        {
+            String StoredIndexHash, ComputedIndexHash;
+            StoredIndexHash = "0x";
+            ComputedIndexHash = "0x";
 
+            StoredIndexHash += Misc.bytesToHex(Info.IndexHash);
+            ComputedIndexHash += Misc.bytesToHex(IndexHash);
 
-        IndexMap.position(0);
-        MountPoint = UE4Deserializer.ReadString(IndexMap);
-        NumEntries = UE4Deserializer.ReadInt(IndexMap);
+            throw new RuntimeException(String.join(System.lineSeparator(), Arrays.asList(
+                "Corrupt pak index detected!",
+                " Filename: " + PakFilename,
+                " Encrypted: " + Info.bEncryptedIndex,
+                " Total Size: " +  CachedTotalSize,
+                " Index Offset: " + Info.IndexOffset,
+                " Index Size: " + Info.IndexSize,
+                " Stored Index Hash: " + StoredIndexHash,
+                " Computed Index Hash: " + ComputedIndexHash,
+                "Corrupted index in pak file (CRC mismatch)."
+            )));
+        }
+
+        IndexMapping.position(0);
+        MountPoint = UE4Deserializer.ReadString(IndexMapping);
+        NumEntries = UE4Deserializer.ReadInt(IndexMapping);
 
 
         for (int EntryIndex = 0; EntryIndex < NumEntries; EntryIndex++)
@@ -108,11 +133,52 @@ public class FPakPlatformFile
             // Serialize from memory.
             final FPakEntry Entry = new FPakEntry();
             String Filename;
-            Filename = UE4Deserializer.ReadString(IndexMap);
-            Entry.Deserialize(IndexMap, Info.Version);
+            Filename = UE4Deserializer.ReadString(IndexMapping);
+            Entry.Deserialize(IndexMapping, Info.Version);
 
             // Add new file info.
             Files.add(Entry);
+
+
+            // Construct Index of all directories in pak file.
+            String Path = FPaths.GetPath(Filename);
+            Path = MakeDirectoryFromPath(Path);
+
+            Map<String, FPakEntry> Directory = Index.get(Path);
+            if (Directory != null)
+            {
+                Directory.put(FPaths.GetCleanFilename(Filename), Entry);
+            }
+            else
+            {
+                Map<String, FPakEntry> NewDirectory = new HashMap<>();
+                Index.put(Path, NewDirectory);
+
+                NewDirectory.put(FPaths.GetCleanFilename(Filename), Entry);
+
+
+                // add the parent directories up to the mount point
+//                while (!(MountPoint.equals(Path))
+//                {
+//                    Path = Path.Left(Path.Len() - 1);
+//                    int32 Offset = 0;
+//                    if (Path.FindLastChar('/', Offset))
+//                    {
+//                        Path = Path.Left(Offset);
+//                        MakeDirectoryFromPath(Path);
+//                        if (Index.Find(Path) == NULL)
+//                        {
+//                            Index.Add(Path);
+//                        }
+//                    }
+//                    else
+//                    {
+//                        Path = MountPoint;
+//                    }
+//                }
+            }
+
+
 
             System.out.println(String.join(" ", Arrays.asList(
                 Filename,
@@ -127,7 +193,7 @@ public class FPakPlatformFile
 
 
 
-    public static String  MakeDirectoryFromPath(String Path)
+    public static String MakeDirectoryFromPath(String Path)
     {
         if (Path.length() > 0 && Path.charAt(Path.length() - 1) != '/')
         {

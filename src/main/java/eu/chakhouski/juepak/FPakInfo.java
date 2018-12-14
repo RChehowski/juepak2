@@ -6,7 +6,7 @@ import eu.chakhouski.juepak.annotations.UEPojo;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import static eu.chakhouski.juepak.Sizeof.sizeof;
+import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @UEPojo
 public class FPakInfo
