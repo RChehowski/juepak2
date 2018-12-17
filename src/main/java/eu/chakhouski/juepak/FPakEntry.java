@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.nio.ByteBuffer;
@@ -33,7 +34,7 @@ public class FPakEntry
     /**
      * Constructor.
      */
-    FPakEntry()
+    public FPakEntry()
     {
         Offset = -1;
         Size = 0;
@@ -43,7 +44,7 @@ public class FPakEntry
         bEncrypted = 0;
         Verified = false;
 
-        Arrays.fill(Hash, (byte)0);
+        Arrays.fill(Hash, (byte) 0);
     }
 
     /**
@@ -57,7 +58,7 @@ public class FPakEntry
         if (Version >= FPakInfo.PakFile_Version_CompressionEncryption)
         {
             SerializedSize += sizeof(bEncrypted) + sizeof(CompressionBlockSize);
-            if(CompressionMethod != COMPRESS_None)
+            if (CompressionMethod != COMPRESS_None)
             {
                 SerializedSize += sizeof(FPakCompressedBlock.class) * CompressionBlocks.size() + sizeof(int.class);
             }
@@ -71,7 +72,7 @@ public class FPakEntry
     }
 
 
-    void Deserialize(ByteBuffer Ar, int Version)
+    public void Deserialize(ByteBuffer Ar, int Version)
     {
         Offset = UE4Deserializer.ReadLong(Ar);
         Size = UE4Deserializer.ReadLong(Ar);
@@ -101,5 +102,33 @@ public class FPakEntry
             bEncrypted = Ar.get();
             CompressionBlockSize = UE4Deserializer.ReadInt(Ar);
         }
+    }
+
+    /**
+     * Compares two FPakEntry structs.
+     */
+    private boolean operatorEQ (FPakEntry B)
+    {
+        // Offsets are not compared here because they're not
+        // serialized with file headers anyway.
+        return Size == B.Size &&
+            UncompressedSize == B.UncompressedSize &&
+            CompressionMethod == B.CompressionMethod &&
+            bEncrypted == B.bEncrypted &&
+            CompressionBlockSize == B.CompressionBlockSize &&
+            FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) == 0 &&
+            CompressionBlocks == B.CompressionBlocks;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        return operatorEQ((FPakEntry) o);
     }
 }
