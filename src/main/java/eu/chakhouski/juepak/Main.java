@@ -18,8 +18,8 @@ public class Main
         final FPakInfo fPakInfo = new FPakInfo();
 
 
-        final String file = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor.pak";//"/Users/netherwire/Downloads/BloodOfHeroes_Client_Mac_139_master_shipping/boh_gdc" +
-                                    // ".app/Contents/UE4/boh_gdc/Content/Paks/boh_gdc-MacNoEditor.pak";
+        final String file = "/Users/netherwire/Downloads/BloodOfHeroes_Client_Mac_139_master_shipping/boh_gdc" +
+                                    ".app/Contents/UE4/boh_gdc/Content/Paks/boh_gdc-MacNoEditor.pak";
 
         final FPakFile fPakFile = new FPakFile(file);
 
@@ -32,7 +32,7 @@ public class Main
             "sha1: " + Misc.bytesToHex(Entry.Hash)
         ))));
 
-        PakExtractor.Extract(fPakFile, Paths.get(file), Entries, Paths.get("C:\\Users\\ASUS\\Desktop\\Extract"));
+//        PakExtractor.Extract(fPakFile, Paths.get(file), Entries, Paths.get("C:\\Users\\ASUS\\Desktop\\Extract"));
 
 
 

@@ -1,6 +1,10 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FPaths;
+import eu.chakhouski.juepak.ue4.FSHA1;
+import eu.chakhouski.juepak.ue4.FString;
+import eu.chakhouski.juepak.ue4.FStringUtils;
 import eu.chakhouski.juepak.util.Misc;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
@@ -19,8 +23,9 @@ import java.util.List;
 import java.util.Map;
 
 import static eu.chakhouski.juepak.ue4.FPaths.INDEX_NONE;
-import static eu.chakhouski.juepak.ue4.FStringUtils.Left;
+import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
+@SuppressWarnings("StringConcatenationInLoop")
 public class FPakFile implements Iterable<FPakEntry>
 {
     /** Pak filename. */
@@ -106,24 +111,40 @@ public class FPakFile implements Iterable<FPakEntry>
         LoadIndex(channel);
     }
 
-    private void LoadIndex(FileChannel channel) throws IOException, NoSuchAlgorithmException
+    private void LoadIndex(FileChannel channel) throws IOException
     {
+        // TODO: Deserialize bytes directly
+        // Load index into memory first.
         final MappedByteBuffer IndexMapping = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
         IndexMapping.order(ByteOrder.LITTLE_ENDIAN);
 
-        final byte[] IndexBytes = new byte[(int)Info.IndexSize];
-        IndexMapping.get(IndexBytes);
+        final byte[] IndexData;
+        IndexData = new byte[(int)Info.IndexSize];
+        IndexMapping.get(IndexData);
 
-        final byte[] IndexHash = MessageDigest.getInstance("SHA-1").digest(IndexBytes);
+        // Decrypt if necessary
+        if (Info.bEncryptedIndex != 0)
+        {
+//            DecryptData(IndexData.GetData(), Info.IndexSize);
 
-        if (!Arrays.equals(IndexHash, Info.IndexHash))
+            throw new RuntimeException("Encrypted index is not implemented yet");
+        }
+
+        // Check SHA1 value.
+        byte[] IndexHash = new byte[20];
+        FSHA1.HashBuffer(IndexData, IndexData.length, IndexHash);
+
+        if (FMemory.Memcmp(IndexHash, Info.IndexHash, sizeof(IndexHash)) != 0)
         {
             String StoredIndexHash, ComputedIndexHash;
             StoredIndexHash = "0x";
             ComputedIndexHash = "0x";
 
-            StoredIndexHash += Misc.bytesToHex(Info.IndexHash);
-            ComputedIndexHash += Misc.bytesToHex(IndexHash);
+            for (int ByteIndex = 0; ByteIndex < 20; ++ByteIndex)
+            {
+                StoredIndexHash += FString.Printf("%02X", Info.IndexHash[ByteIndex]);
+                ComputedIndexHash += FString.Printf("%02X", IndexHash[ByteIndex]);
+            }
 
             throw new RuntimeException(String.join(System.lineSeparator(), Arrays.asList(
                 "Corrupt pak index detected!",
@@ -175,12 +196,12 @@ public class FPakFile implements Iterable<FPakEntry>
                 // add the parent directories up to the mount point
                 while (!(MountPoint.equals(Path)))
                 {
-                    Path = Left(Path, Path.length() - 1);
+                    Path = FStringUtils.Left(Path, Path.length() - 1);
 
                     int Offset = Path.lastIndexOf('/');
                     if (Offset != INDEX_NONE)
                     {
-                        Path = Left(Path, Offset);
+                        Path = FStringUtils.Left(Path, Offset);
                         Path = MakeDirectoryFromPath(Path);
                         if (!Index.containsKey(Path))
                         {
@@ -193,16 +214,7 @@ public class FPakFile implements Iterable<FPakEntry>
                     }
                 }
             }
-
-//            System.out.println(String.join(" ", Arrays.asList(
-//                Filename,
-//                "offset: " + Entry.Offset,
-//                "size: " + Entry.Size + " bytes",
-//                "sha1: " + Misc.bytesToHex(Entry.Hash)
-//            )));
         }
-
-        System.out.println("Hello");
     }
 
 
