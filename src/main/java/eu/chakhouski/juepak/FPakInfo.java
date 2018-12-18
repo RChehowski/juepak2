@@ -1,14 +1,15 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
-import eu.chakhouski.juepak.annotations.UEPojo;
+import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.ue4.FMemory;
 
 import java.nio.ByteBuffer;
 
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
-@UEPojo
+@FStruct
 public class FPakInfo
 {
     /**
@@ -91,5 +92,11 @@ public class FPakInfo
         IndexSize = b.getLong();
 
         b.get(IndexHash);
+    }
+
+    @Operator("bool")
+    public Boolean operatorBOOL()
+    {
+        return false;
     }
 }

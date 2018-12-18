@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.Misc;
 
 import java.util.Arrays;
@@ -11,9 +12,6 @@ public class Main
 {
     public static void main(String[] args) throws Exception
     {
-        final FPakInfo fPakInfo = new FPakInfo();
-
-
         final String file = "/Users/netherwire/Downloads/BloodOfHeroes_Client_Mac_139_master_shipping/boh_gdc" +
                                     ".app/Contents/UE4/boh_gdc/Content/Paks/boh_gdc-MacNoEditor.pak";
 
@@ -25,27 +23,7 @@ public class Main
             Filename,
             "offset: " + Entry.Offset,
             "size: " + Entry.Size + " bytes",
-            "sha1: " + Misc.bytesToHex(Entry.Hash)
+            "sha1: " + FString.BytesToHex(Entry.Hash)
         ))));
-
-//        PakExtractor.Extract(fPakFile, Paths.get(file), Entries, Paths.get("C:\\Users\\ASUS\\Desktop\\Extract"));
-
-
-
-
-        System.out.println(Entries.size());
-//        int n = 0;
-//        for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
-//        {
-//            FPakEntry Entry = iterator.next();
-//
-//            System.out.println(String.join(" ", Arrays.asList(
-//                ++n + ") ",
-//                iterator.Filename(),
-//                "offset: " + Entry.Offset,
-//                "size: " + Entry.Size + " bytes",
-//                "sha1: " + Misc.bytesToHex(Entry.Hash)
-//            )));
-//        }
     }
 }

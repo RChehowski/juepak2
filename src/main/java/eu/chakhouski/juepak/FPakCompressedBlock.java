@@ -2,12 +2,12 @@ package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
-import eu.chakhouski.juepak.annotations.UEPojo;
+import eu.chakhouski.juepak.annotations.FStruct;
 
 /**
  * Struct storing offsets and sizes of a compressed block.
  */
-@UEPojo
+@FStruct
 public class FPakCompressedBlock
 {
     /** Offset of the start of a compression block. Offset is absolute. */

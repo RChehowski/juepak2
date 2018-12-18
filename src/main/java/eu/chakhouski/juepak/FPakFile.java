@@ -4,8 +4,8 @@ import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
-import eu.chakhouski.juepak.ue4.FStringUtils;
 import eu.chakhouski.juepak.util.UE4Deserializer;
+import org.apache.commons.lang.mutable.MutableInt;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static eu.chakhouski.juepak.ue4.FPaths.INDEX_NONE;
 import static eu.chakhouski.juepak.util.Misc.$;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
@@ -186,20 +185,18 @@ public class FPakFile implements Iterable<FPakEntry>
             else
             {
                 Map<String, FPakEntry> NewDirectory = new HashMap<>();
-                Index.put(Path, NewDirectory);
-
                 NewDirectory.put(FPaths.GetCleanFilename(Filename), Entry);
 
+                Index.put(Path, NewDirectory);
 
                 // add the parent directories up to the mount point
                 while (!(MountPoint.equals(Path)))
                 {
-                    Path = FStringUtils.Left(Path, Path.length() - 1);
-
-                    int Offset = Path.lastIndexOf('/');
-                    if (Offset != INDEX_NONE)
+                    Path = FString.Left(Path, Path.length() - 1);
+                    MutableInt Offset = new MutableInt(0);
+                    if (FString.FindLastChar(Path, '/', Offset))
                     {
-                        Path = FStringUtils.Left(Path, Offset);
+                        Path = FString.Left(Path, Offset.intValue());
                         Path = MakeDirectoryFromPath(Path);
                         if (!Index.containsKey(Path))
                         {

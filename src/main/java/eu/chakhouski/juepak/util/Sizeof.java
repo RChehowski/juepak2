@@ -1,7 +1,7 @@
 package eu.chakhouski.juepak.util;
 
 import eu.chakhouski.juepak.annotations.StaticSize;
-import eu.chakhouski.juepak.annotations.UEPojo;
+import eu.chakhouski.juepak.annotations.FStruct;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -56,22 +56,22 @@ public class Sizeof
 
     public static int sizeof(Class<?> clazz)
     {
-        return sizeCache.computeIfAbsent(clazz, Sizeof::getPojoSize);
+        return sizeCache.computeIfAbsent(clazz, Sizeof::getStructSize);
     }
 
-    private static int getPojoSize(Class<?> clazz)
+    private static int getStructSize(Class<?> clazz)
     {
         if (sizeCache.containsKey(clazz))
         {
             return sizeCache.get(clazz);
         }
-        else if (clazz.isAnnotationPresent(UEPojo.class))
+        else if (clazz.isAnnotationPresent(FStruct.class))
         {
             if (!Object.class.equals(clazz.getSuperclass()))
-                throw new RuntimeException("POJO must only extend Object");
+                throw new RuntimeException("FStruct must only extend Object");
 
             if (clazz.getInterfaces().length != 0)
-                throw new RuntimeException("POJO must not implement any interfaces");
+                throw new RuntimeException("FStruct must not implement any interfaces");
 
 
             int calculatedSize = 0;
@@ -86,7 +86,7 @@ public class Sizeof
                     }
                     else
                     {
-                        calculatedSize += getPojoSize(f.getType());
+                        calculatedSize += getStructSize(f.getType());
                     }
                 }
             }
@@ -95,7 +95,8 @@ public class Sizeof
         }
         else
         {
-            throw new RuntimeException("Class is non-pojo and thus it's size cannot be determined: " + clazz.toString());
+            throw new RuntimeException(clazz.getName() + " is neither primitive nor FStruct, and thus it's size " +
+                    "cannot be determined");
         }
     }
 }

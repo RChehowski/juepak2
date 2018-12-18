@@ -3,14 +3,20 @@ package eu.chakhouski.juepak.util;
 import eu.chakhouski.juepak.FFileIterator;
 import eu.chakhouski.juepak.FPakEntry;
 import eu.chakhouski.juepak.FPakFile;
+import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.Operator;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc
@@ -25,6 +31,7 @@ public class Misc
     private static Long zeroLong = (long) 0;
     private static Double zeroDouble = (double) 0;
 
+    private static Map<Class<?>, MethodHandle> operatorBoolCache = new HashMap<>();
 
     public static Map<String, FPakEntry> GetSortedEntries(FPakFile PakFile, Comparator<FPakEntry> Comparator)
     {
@@ -54,68 +61,106 @@ public class Misc
 
         // Primitive checks
         if (oClass.equals(Boolean.class))
-            return zeroBoolean.equals(o);
+            return !zeroBoolean.equals(o);
 
         else if (oClass.equals(Byte.class))
-            return zeroByte.equals(o);
+            return !zeroByte.equals(o);
 
         else if (oClass.equals(Short.class))
-            return zeroShort.equals(o);
+            return !zeroShort.equals(o);
 
         else if (oClass.equals(Character.class))
-            return zeroCharacter.equals(o);
+            return !zeroCharacter.equals(o);
 
         else if (oClass.equals(Integer.class))
-            return zeroInteger.equals(o);
+            return !zeroInteger.equals(o);
 
         else if (oClass.equals(Float.class))
-            return zeroFloat.equals(o);
+            return !zeroFloat.equals(o);
 
         else if (oClass.equals(Long.class))
-            return zeroLong.equals(o);
+            return !zeroLong.equals(o);
 
         else if (oClass.equals(Double.class))
-            return zeroDouble.equals(o);
+            return !zeroDouble.equals(o);
 
-        // But it may have the 'bool operator()', let's figure it out
-        Method operatorBool = null;
-        for (Method method : oClass.getMethods())
+        else if (oClass.isAnnotationPresent(FStruct.class))
         {
-            final Operator annotation = method.getAnnotation(Operator.class);
-
-            if (Operator.BOOL.equals(annotation.value()))
+            MethodHandle operatorBool = null;
+            if (!operatorBoolCache.containsKey(oClass))
             {
-                operatorBool = method;
-            }
-        }
+                final Method[] declaredMethods = oClass.getDeclaredMethods();
+                Method operatorBoolMethod = null;
 
-        if (operatorBool != null)
-        {
-            // Check if the convention is valid
-            if (!boolean.class.equals(operatorBool.getReturnType()))
+                for (int i = 0, l = declaredMethods.length; (i < l) && (operatorBoolMethod == null); i++)
+                {
+                    Method declaredMethod = declaredMethods[i];
+                    final Operator operator = declaredMethod.getAnnotation(Operator.class);
+
+                    if ((operator != null) && Operator.BOOL.equals(operator.value()))
+                        operatorBoolMethod = declaredMethod;
+                }
+
+                if (operatorBoolMethod != null)
+                {
+                    final boolean methodWasAccessible = operatorBoolMethod.isAccessible();
+                    if (methodWasAccessible)
+                        operatorBoolMethod.setAccessible(true);
+
+
+                    // Check if the convention is valid
+                    if (!boolean.class.equals(operatorBoolMethod.getReturnType()) &&
+                        !Boolean.class.equals(operatorBoolMethod.getReturnType()))
+                    {
+                        throw new RuntimeException(oClass.getName() + "." + operatorBoolMethod.getName() +
+                                " must return 'boolean' or 'Boolean' to be used as Operator(\"bool\")");
+                    }
+
+                    if (operatorBoolMethod.getParameterCount() != 0)
+                    {
+                        throw new RuntimeException(oClass.getName() + "." + operatorBoolMethod.getName() +
+                                " must have no params to be used as Operator(\"bool\")");
+                    }
+
+                    // Call the operator
+                    try {
+                        operatorBool = MethodHandles.lookup().unreflect(operatorBoolMethod);
+                    }
+                    catch (IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    if (!methodWasAccessible)
+                        operatorBoolMethod.setAccessible(false);
+                }
+
+                operatorBoolCache.put(oClass, operatorBool);
+            }
+            else
             {
-                throw new RuntimeException(oClass.getName() + "." + operatorBool.getName() + " must return 'boolean' " +
-                        "to be used as Operator(\"bool\")");
+                operatorBool = operatorBoolCache.get(oClass);
             }
 
-            if (operatorBool.getParameterCount() != 0)
+
+            if (operatorBool != null)
             {
-                throw new RuntimeException(oClass.getName() + "." + operatorBool.getName() + " must have no params " +
-                        "to be used as Operator(\"bool\")");
+                try {
+                    return (boolean)operatorBool.invoke(o);
+                }
+                catch (Throwable throwable) {
+                    throw new RuntimeException(throwable);
+                }
             }
-
-            // All checks done, call the operator
-            try {
-                return (Boolean)operatorBool.invoke(o);
-            }
-            catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException(e);
+            else
+            {
+                // Otherwise we assume the object is 'exists' and have not overloaded 'bool operator()' and thus return true
+                return true;
             }
         }
         else
         {
-            // Otherwise we assume the object is 'exists' and have not overloaded 'bool operator()' and thus return true
-            return true;
+            // No support for complex types yet
+            throw new RuntimeException("Implicit boolean casts are supported only for primitive and FStruct types");
         }
     }
 
@@ -127,5 +172,20 @@ public class Misc
     public static String TEXT(String s)
     {
         return s;
+    }
+
+    public static char TEXT(char c)
+    {
+        return c;
+    }
+
+    public static char TCHAR(char c)
+    {
+        return c;
+    }
+
+    public static char TCHAR(int i)
+    {
+        return (char)i;
     }
 }
