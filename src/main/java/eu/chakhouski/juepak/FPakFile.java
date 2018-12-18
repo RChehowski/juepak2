@@ -7,12 +7,15 @@ import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import org.apache.commons.lang.mutable.MutableInt;
 
+import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -65,6 +68,25 @@ public class FPakFile implements Iterable<FPakEntry>
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void DecryptData(byte[] InData, long InDataSize)
+    {
+        try
+        {
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+
+//            cipher.init(Cipher.DECRYPT_MODE, );
+        }
+        catch (NoSuchAlgorithmException | NoSuchPaddingException e)
+        {
+            e.printStackTrace();
+        }
+
+//        SCOPE_SECONDS_ACCUMULATOR(STAT_PakCache_DecryptTime);
+//        FAES::FAESKey Key;
+//        FPakPlatformFile::GetPakEncryptionKey(Key);
+//        FAES::DecryptData(InData, InDataSize, Key);
     }
 
     private void Initialize(FileChannel channel) throws Exception
