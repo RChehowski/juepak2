@@ -3,7 +3,10 @@ package eu.chakhouski.juepak.util;
 import eu.chakhouski.juepak.FFileIterator;
 import eu.chakhouski.juepak.FPakEntry;
 import eu.chakhouski.juepak.FPakFile;
+import eu.chakhouski.juepak.annotations.Operator;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -62,6 +65,7 @@ public class Misc
 
         final Class<?> oClass = o.getClass();
 
+        // Primitive checks
         if (oClass.equals(Boolean.class))
             return zeroBoolean.equals(o);
 
@@ -86,7 +90,46 @@ public class Misc
         else if (oClass.equals(Double.class))
             return zeroDouble.equals(o);
 
-        return false;
+        // But it may have the 'bool operator()', let's figure it out
+        Method operatorBool = null;
+        for (Method method : oClass.getMethods())
+        {
+            final Operator annotation = method.getAnnotation(Operator.class);
+
+            if (Operator.BOOL.equals(annotation.value()))
+            {
+                operatorBool = method;
+            }
+        }
+
+        if (operatorBool != null)
+        {
+            // Check if the convention is valid
+            if (!boolean.class.equals(operatorBool.getReturnType()))
+            {
+                throw new RuntimeException(oClass.getName() + "." + operatorBool.getName() + " must return 'boolean' " +
+                        "to be used as Operator(\"bool\")");
+            }
+
+            if (operatorBool.getParameterCount() != 0)
+            {
+                throw new RuntimeException(oClass.getName() + "." + operatorBool.getName() + " must have no params " +
+                        "to be used as Operator(\"bool\")");
+            }
+
+            // All checks done, call the operator
+            try {
+                return (Boolean)operatorBool.invoke(o);
+            }
+            catch (IllegalAccessException | InvocationTargetException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        else
+        {
+            // Otherwise we assume the object is 'exists' and have not overloaded 'bool operator()' and thus return true
+            return true;
+        }
     }
 
     /**

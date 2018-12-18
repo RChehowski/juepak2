@@ -9,9 +9,15 @@ import java.lang.annotation.Target;
  * Indicates that this element was a C++ operator. {@link Operator#value()} must indicate the purpose of a
  * particular operator (such as '==' or '!=' or '+')
  */
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface Operator
 {
+    String NOT = "!";
+    String EQ = "==";
+    String NEQ = "!=";
+
+    String BOOL = "bool";
+
     String value();
 }
