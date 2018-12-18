@@ -5,7 +5,6 @@ import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.ue4.FStringUtils;
-import eu.chakhouski.juepak.util.Misc;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.io.FileInputStream;
@@ -14,8 +13,6 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -23,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static eu.chakhouski.juepak.ue4.FPaths.INDEX_NONE;
+import static eu.chakhouski.juepak.util.Misc.$;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @SuppressWarnings("StringConcatenationInLoop")
@@ -85,7 +83,7 @@ public class FPakFile implements Iterable<FPakEntry>
 
         if (CachedTotalSize < Info.GetSerializedSize())
         {
-            if (CachedTotalSize != 0) // UEMOB-425: can be zero - only error when not zero
+            if ($(CachedTotalSize)) // UEMOB-425: can be zero - only error when not zero
             {
                 throw new RuntimeException("Corrupted pak file " + PakFilename + " (too short). Verify your installation.");
             }
@@ -123,7 +121,7 @@ public class FPakFile implements Iterable<FPakEntry>
         IndexMapping.get(IndexData);
 
         // Decrypt if necessary
-        if (Info.bEncryptedIndex != 0)
+        if ($(Info.bEncryptedIndex))
         {
 //            DecryptData(IndexData.GetData(), Info.IndexSize);
 

@@ -1,7 +1,12 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
+import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.UEPojo;
 
+/**
+ * Struct storing offsets and sizes of a compressed block.
+ */
 @UEPojo
 public class FPakCompressedBlock
 {
@@ -10,7 +15,20 @@ public class FPakCompressedBlock
     /** Offset of the end of a compression block. This may not align completely with the start of the next block. Offset is absolute. */
     public long CompressedEnd;
 
+    @Operator("==")
+    public boolean operatorEQ (FPakCompressedBlock B)
+    {
+        return CompressedStart == B.CompressedStart && CompressedEnd == B.CompressedEnd;
+    }
+
+    @Operator("!=")
+    public boolean operatorNEQ (FPakCompressedBlock B)
+    {
+        return !(this.operatorEQ(B));
+    }
+
     @Override
+    @JavaDecoratorMethod
     public boolean equals(Object o)
     {
         if (this == o)
@@ -19,7 +37,6 @@ public class FPakCompressedBlock
         if (o == null || getClass() != o.getClass())
             return false;
 
-        FPakCompressedBlock B = (FPakCompressedBlock) o;
-        return CompressedStart == B.CompressedStart && CompressedEnd == B.CompressedEnd;
+        return this.operatorEQ((FPakCompressedBlock) o);
     }
 }

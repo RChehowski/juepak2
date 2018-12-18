@@ -1,13 +1,9 @@
 package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.util.Misc;
-import eu.chakhouski.juepak.util.PakExtractor;
 
-import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static java.util.Comparator.comparingLong;
 

@@ -1,10 +1,11 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
+import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
@@ -44,7 +45,7 @@ public class FPakEntry
         bEncrypted = 0;
         Verified = false;
 
-        Arrays.fill(Hash, (byte) 0);
+        FMemory.Memset(Hash, (byte)0, sizeof(Hash));
     }
 
     /**
@@ -107,7 +108,9 @@ public class FPakEntry
     /**
      * Compares two FPakEntry structs.
      */
-    private boolean operatorEQ (FPakEntry B)
+    @Operator("==")
+    @SuppressWarnings({"WeakerAccess"})
+    public boolean operatorEQ (FPakEntry B)
     {
         // Offsets are not compared here because they're not
         // serialized with file headers anyway.
@@ -120,7 +123,27 @@ public class FPakEntry
             CompressionBlocks == B.CompressionBlocks;
     }
 
+    /**
+     * Compares two FPakEntry structs.
+     */
+    @Operator("!=")
+    @SuppressWarnings({"unused"})
+    public boolean operatorNEQ (FPakEntry B)
+    {
+        // Offsets are not compared here because they're not
+        // serialized with file headers anyway.
+        return Size != B.Size ||
+            UncompressedSize != B.UncompressedSize ||
+            CompressionMethod != B.CompressionMethod ||
+            bEncrypted != B.bEncrypted ||
+            CompressionBlockSize != B.CompressionBlockSize ||
+            FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) != 0 ||
+            CompressionBlocks != B.CompressionBlocks;
+    }
+
+
     @Override
+    @JavaDecoratorMethod
     public boolean equals(Object o)
     {
         if (this == o)

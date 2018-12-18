@@ -11,4 +11,14 @@ public class FMemory
 
         return cmp;
     }
+
+    public static byte[] Memset(byte[] Dest, byte Char, long Count)
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            Dest[i] = Char;
+        }
+
+        return Dest;
+    }
 }

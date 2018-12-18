@@ -2,9 +2,9 @@ package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.annotations.UEPojo;
+import eu.chakhouski.juepak.ue4.FMemory;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
@@ -61,8 +61,7 @@ public class FPakInfo
 		this.IndexSize = 0;
 		this.bEncryptedIndex = 0;
 
-        // FMemory::Memset(IndexHash, 0, sizeof(IndexHash));
-        Arrays.fill(IndexHash, (byte)0);
+        FMemory.Memset(IndexHash, (byte)0, sizeof(IndexHash));
     }
 
     /**
