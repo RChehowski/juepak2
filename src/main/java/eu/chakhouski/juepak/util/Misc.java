@@ -12,10 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+@SuppressWarnings("FieldCanBeLocal")
 public class Misc
 {
-    private final static char[] hexArray = "0123456789ABCDEF".toCharArray();
-
     private static Boolean zeroBoolean = Boolean.FALSE;
     private static Byte zeroByte = (byte) 0;
     private static Short zeroShort = (short) 0;
@@ -26,18 +25,6 @@ public class Misc
     private static Long zeroLong = (long) 0;
     private static Double zeroDouble = (double) 0;
 
-
-
-    public static String bytesToHex(byte[] bytes)
-    {
-        char[] hexChars = new char[bytes.length * 2];
-        for ( int j = 0; j < bytes.length; j++ ) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
 
     public static Map<String, FPakEntry> GetSortedEntries(FPakFile PakFile, Comparator<FPakEntry> Comparator)
     {
