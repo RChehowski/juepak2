@@ -45,7 +45,7 @@ public class FPakEntry
         bEncrypted = 0;
         Verified = false;
 
-        FMemory.Memset(Hash, (byte)0, sizeof(Hash));
+        FMemory.Memset(Hash, 0, sizeof(Hash));
     }
 
     /**

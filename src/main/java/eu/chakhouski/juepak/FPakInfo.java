@@ -62,7 +62,7 @@ public class FPakInfo
 		this.IndexSize = 0;
 		this.bEncryptedIndex = 0;
 
-        FMemory.Memset(IndexHash, (byte)0, sizeof(IndexHash));
+        FMemory.Memset(IndexHash, 0, sizeof(IndexHash));
     }
 
     /**

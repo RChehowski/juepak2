@@ -21,4 +21,9 @@ public class FMemory
 
         return Dest;
     }
+
+    public static byte[] Memset(byte[] Dest, int Int, long Count)
+    {
+        return Memset(Dest, (byte)Int, Count);
+    }
 }

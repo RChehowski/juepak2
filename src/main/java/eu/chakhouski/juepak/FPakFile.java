@@ -1,5 +1,7 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.ue4.FAES;
+import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
@@ -22,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static eu.chakhouski.juepak.util.Misc.$;
+import static eu.chakhouski.juepak.util.Misc.BOOL;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @SuppressWarnings("StringConcatenationInLoop")
@@ -70,6 +72,23 @@ public class FPakFile implements Iterable<FPakEntry>
         }
     }
 
+    /**
+     * Precaching
+     */
+
+    public void GetPakEncryptionKey(FAES.FAESKey OutKey)
+    {
+        FCoreDelegates.FPakEncryptionKeyDelegate Delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
+        if (Delegate.IsBound())
+        {
+            Delegate.Execute(OutKey.Key);
+        }
+        else
+        {
+            FMemory.Memset(OutKey.Key, 0, sizeof(OutKey.Key));
+        }
+    }
+
     private void DecryptData(byte[] InData, long InDataSize)
     {
         try
@@ -104,7 +123,7 @@ public class FPakFile implements Iterable<FPakEntry>
 
         if (CachedTotalSize < Info.GetSerializedSize())
         {
-            if ($(CachedTotalSize)) // UEMOB-425: can be zero - only error when not zero
+            if (BOOL(CachedTotalSize)) // UEMOB-425: can be zero - only error when not zero
             {
                 throw new RuntimeException("Corrupted pak file " + PakFilename + " (too short). Verify your installation.");
             }
@@ -142,7 +161,7 @@ public class FPakFile implements Iterable<FPakEntry>
         IndexMapping.get(IndexData);
 
         // Decrypt if necessary
-        if ($(Info.bEncryptedIndex))
+        if (BOOL(Info.bEncryptedIndex))
         {
 //            DecryptData(IndexData.GetData(), Info.IndexSize);
 

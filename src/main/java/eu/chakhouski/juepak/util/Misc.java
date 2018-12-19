@@ -52,7 +52,7 @@ public class Misc
      * @param o object to be implicitly casted to boolean.
      * @return Boolean result (true or false)
      */
-    public static boolean $(Object o)
+    public static boolean BOOL(Object o)
     {
         if (o == null)
             return false;
@@ -187,5 +187,10 @@ public class Misc
     public static char TCHAR(int i)
     {
         return (char)i;
+    }
+
+    public static void checkf(Object expr, String format, Object... args)
+    {
+        throw new RuntimeException(String.format(format, (Object[])args));
     }
 }
