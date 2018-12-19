@@ -191,6 +191,9 @@ public class Misc
 
     public static void checkf(Object expr, String format, Object... args)
     {
-        throw new RuntimeException(String.format(format, (Object[])args));
+        if (!BOOL(expr))
+        {
+           throw new RuntimeException(String.format(format, (Object[]) args));
+        }
     }
 }

@@ -19,6 +19,11 @@ public class FCoreDelegates
         {
             Payload.accept(Data);
         }
+
+        public void BindLambda(Consumer<byte[]> payload)
+        {
+            Payload = payload;
+        }
     }
 
     private static final FPakEncryptionKeyDelegate PakEncryptionKeyDelegate = new FPakEncryptionKeyDelegate();

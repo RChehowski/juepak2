@@ -137,7 +137,7 @@ public class FPakFile implements Iterable<FPakEntry>
         if (!(Info.Version >= FPakInfo.PakFile_Version_Initial && Info.Version <= FPakInfo.PakFile_Version_Latest))
             throw new RuntimeException("Invalid pak file version (" + Info.Version + ") in " + PakFilename + ". Verify your installation.");
 
-        if ((Info.bEncryptedIndex == 1) /*&& (!FCoreDelegates::GetPakEncryptionKeyDelegate().IsBound()*/)
+        if ((Info.bEncryptedIndex == 1) && (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound()))
             throw new RuntimeException("Index of pak file '" + PakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
 
         if (!(Info.IndexOffset >= 0 && Info.IndexOffset < CachedTotalSize))
