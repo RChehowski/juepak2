@@ -17,6 +17,7 @@ import javax.crypto.NoSuchPaddingException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -171,8 +172,12 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         }
         else
         {
+            final ByteBuffer IndexBuffer = ByteBuffer.allocate((int) Info.IndexSize);
+            // TODO: Rewire
+
+
             // Load index into memory first.
-            final MappedByteBuffer IndexMapping = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
+            ByteBuffer IndexMapping = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
             IndexMapping.order(ByteOrder.LITTLE_ENDIAN);
 
             final byte[] IndexData;
@@ -216,7 +221,10 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                 )));
             }
 
-            IndexMapping.position(0);
+            // TODO: Remove
+            IndexMapping = ByteBuffer.wrap(IndexData);
+
+//            IndexMapping.position(0);
             MountPoint = UE4Deserializer.ReadString(IndexMapping);
             NumEntries = UE4Deserializer.ReadInt(IndexMapping);
 
