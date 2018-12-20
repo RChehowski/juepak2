@@ -13,7 +13,7 @@ import java.nio.file.Path;
 
 public class PakExtractor
 {
-    private static final byte[] ExtractBuffer = new byte[256 * 1024];
+    private static final FPakEntry CheckEntry = new FPakEntry();
 
 
     public synchronized static void Extract(FPakFile PakFile, String Filename, FPakEntry Entry, Path RootPath)
@@ -25,8 +25,6 @@ public class PakExtractor
         final FileInputStream PakInputStream = PakFile.InputStream;
         final FileChannel Channel = PakInputStream.getChannel();
 
-
-
         final Path AbsolutePath = RootPath.resolve(Filename);
         final Path AbsoluteDir = AbsolutePath.getParent();
 
@@ -35,9 +33,7 @@ public class PakExtractor
             Files.createDirectories(AbsoluteDir);
         }
 
-
-        final FPakEntry CheckEntry = new FPakEntry();
-        final long EntrySerializedSize = CheckEntry.GetSerializedSize(PakInfo.Version);
+        final long EntrySerializedSize = PakFile.GetPakEntrySerializedSize();
 
         CheckEntry.Deserialize(
                 Channel.map(FileChannel.MapMode.READ_ONLY, Entry.Offset, EntrySerializedSize),
@@ -45,26 +41,16 @@ public class PakExtractor
         );
 
         // Compare entries
-        if (!Entry.equals(CheckEntry))
+        if (Entry.equals(CheckEntry))
         {
-            throw new RuntimeException("Entry is invalid!");
-        }
-
-        // !!! Note that we need to skip the freaking FPakEntry once again !!!
-        Channel.position(Entry.Offset + EntrySerializedSize);
-
-        long numBytesToRead = Entry.UncompressedSize;
-        try (final FileOutputStream Fos = new FileOutputStream(AbsolutePath.toFile()))
-        {
-            while (numBytesToRead > 0)
+            try (final FileOutputStream Fos = new FileOutputStream(AbsolutePath.toFile()))
             {
-                final long readPerOp = Math.min(numBytesToRead, ExtractBuffer.length);
-
-                PakInputStream.read(ExtractBuffer, 0, (int) readPerOp);
-                Fos.write(ExtractBuffer, 0, (int) readPerOp);
-
-                numBytesToRead -= readPerOp;
+                Channel.transferTo(Entry.Offset + EntrySerializedSize, Entry.UncompressedSize, Fos.getChannel());
             }
+        }
+        else
+        {
+            throw new RuntimeException("Entry is invalid");
         }
     }
 }

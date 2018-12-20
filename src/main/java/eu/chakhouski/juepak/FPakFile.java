@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.ue4.FAES;
@@ -54,6 +55,12 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
      */
     @JavaDecoratorField
     public FileInputStream InputStream;
+
+    /**
+     * Cached size of pak entry for a particular PAK file (because it is constant within a file)
+     */
+    @JavaDecoratorField
+    private long PakEntrySerializedSize = -1;
 
 
     // === Constructor and destructor ===
@@ -175,9 +182,9 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             // Decrypt if necessary
             if (BOOL(Info.bEncryptedIndex))
             {
-//            DecryptData(IndexData.GetData(), Info.IndexSize);
+                DecryptData(IndexData, (int)Info.IndexSize);
 
-                throw new RuntimeException("Encrypted index is not implemented yet");
+//                throw new RuntimeException("Encrypted index is not implemented yet");
             }
 
             // Check SHA1 value.
@@ -285,5 +292,17 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         {
             return Path;
         }
+    }
+
+    @JavaDecoratorMethod
+    public long GetPakEntrySerializedSize()
+    {
+        if (PakEntrySerializedSize == -1)
+        {
+            final FPakEntry PakEntry = new FPakEntry();
+            PakEntrySerializedSize = PakEntry.GetSerializedSize(Info.Version);
+        }
+
+        return PakEntrySerializedSize;
     }
 }
