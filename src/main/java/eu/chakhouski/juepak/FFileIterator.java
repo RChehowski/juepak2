@@ -1,5 +1,11 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.APIBridgeMethod;
+import eu.chakhouski.juepak.util.PakExtractor;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -20,6 +26,8 @@ public final class FFileIterator implements Iterator<FPakEntry>
      * Since in java {@link Iterator#next()} actually advances the iterator, we need to cache the current directory name.
      */
     private String CurrentDirectory;
+
+    private FPakEntry CachedPakEntry;
 
 
     FFileIterator(FPakFile InPakFile)
@@ -76,6 +84,23 @@ public final class FFileIterator implements Iterator<FPakEntry>
         final Entry<String, FPakEntry> DirectoryEntry = DirectoryIt.next();
         CachedFilename = CurrentDirectory + DirectoryEntry.getKey();
 
-        return DirectoryEntry.getValue();
+        // Update cached Pak Entry
+        CachedPakEntry = DirectoryEntry.getValue();
+
+        // Finally return
+        return CachedPakEntry;
+    }
+
+
+    @APIBridgeMethod
+    public void extractMixed(String RootPath) throws IOException
+    {
+        extractMixed(Paths.get(RootPath));
+    }
+
+    @APIBridgeMethod
+    public void extractMixed(Path RootPath) throws IOException
+    {
+        PakExtractor.Extract(PakFile, CachedFilename, CachedPakEntry, RootPath);
     }
 }
