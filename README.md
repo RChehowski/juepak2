@@ -2,16 +2,16 @@ JUEPAK II
 ========
 
 JuepakII [ʤuːpæk] (**J**ava **U**nreal **E**ngine **PAK**-archiver) is an Unreal Engine 4
-**\*.PAK** archiver, written in pure java8. It can browse PAK-archives, extract them from
-such archives, and make new archives from any files. It is completely compatible with 
+**\*.PAK** archiver, written in pure java8. It can browse PAK-archives, extract assets from
+such archives, and make new archives from existing assets. It fully supports both compressed and encrypted archives. It is completely compatible with 
 **UE4.20** and below.
 
 
-##Coding standard
-A code standard within this project might be a bit confusing, but let me explain clearly why 
-is it as it is. We're using **two independent coding standards** in this project:
+## Coding standard
+A coding standard within this project might be a bit confusing, but let me explain clearly why 
+is it as it is. **Two independent coding standards** are used in this project:
 - [Epic Games coding standard](https://docs.unrealengine.com/en-us/Programming/Development/CodingStandard)
-in some UE4-related classes to replicate UE4 functionality. Since Unreal Engine and it's packing
+is used in some UE4-related classes to replicate UE4 functionality. Since Unreal Engine and it's packing
 mechanism is continuously developing, we need a stable and robust way to import upstream changes.
 That also means that you can see **F**-notation for structures, usage of `checkf()`, `TEXT()` and
 some other macros, parts of ported core-UE classes and, of course, old but gold `sizeof()` with
@@ -24,7 +24,7 @@ but instead I tried to make the porting of the Epic company code simple and conv
 - TODO: Write (plain java coding standard).
 
 
-##Pak archive structure
+## Pak archive structure
 - TODO: Write
 
 ## Compression

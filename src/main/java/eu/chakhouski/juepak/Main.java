@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FString;
 
@@ -25,8 +26,7 @@ public class Main
 
 
 
-        final String file = "/Users/netherwire/Desktop/Shooter/MacNoEditor/UEShooter.app/Contents/UE4/UEShooter/Content/Paks/UEShooter-MacNoEditor.pak";
-
+        final String file = "C:\\Users\\ASUS\\VizorGamesLauncher\\games\\boh_gdc\\boh_gdc\\Content\\Paks\\boh_gdc-WindowsNoEditor.pak";
 
         try (final FPakFile fPakFile = new FPakFile(file))
         {
@@ -43,7 +43,7 @@ public class Main
                         "sha1: " + FString.BytesToHex(Entry.Hash)
                 )));
 
-                It.extractMixed("/Users/netherwire/Desktop/extract");
+                It.extractMixed("C:\\Users\\ASUS\\Desktop\\Extract");
             }
         }
         catch (IOException e)

@@ -1,6 +1,5 @@
 package eu.chakhouski.juepak;
 
-import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.ue4.FAES;
@@ -12,8 +11,6 @@ import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import org.apache.commons.lang.mutable.MutableInt;
 
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -22,14 +19,14 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static eu.chakhouski.juepak.util.Misc.BOOL;
+import static eu.chakhouski.juepak.util.Misc.NULL;
+import static eu.chakhouski.juepak.util.Misc.TEXT;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @SuppressWarnings("StringConcatenationInLoop")
@@ -42,7 +39,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     /** Mount point. */
     private String MountPoint;
     /** Info on all files stored in pak. */
-    private final List<FPakEntry> Files = new ArrayList<>();
+    private final ArrayList<FPakEntry> Files = new ArrayList<>();
     /** Pak Index organized as a map of directories for faster Directory iteration. Valid only when bFilenamesRemoved == false. */
     Map<String, Map<String, FPakEntry>> Index = new HashMap<>();
     /** The number of file entries in the pak file */
@@ -172,40 +169,30 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         }
         else
         {
-            final ByteBuffer IndexBuffer = ByteBuffer.allocate((int) Info.IndexSize);
-            // TODO: Rewire
+            final ByteBuffer IndexData = ByteBuffer.allocate((int) Info.IndexSize);
+            channel.read(IndexData.order(ByteOrder.LITTLE_ENDIAN), Info.IndexOffset);
 
-
-            // Load index into memory first.
-            ByteBuffer IndexMapping = channel.map(MapMode.READ_ONLY, Info.IndexOffset, Info.IndexSize);
-            IndexMapping.order(ByteOrder.LITTLE_ENDIAN);
-
-            final byte[] IndexData;
-            IndexData = new byte[(int) Info.IndexSize];
-            IndexMapping.get(IndexData);
+            IndexData.position(0);
 
             // Decrypt if necessary
             if (BOOL(Info.bEncryptedIndex))
             {
-                DecryptData(IndexData, (int)Info.IndexSize);
-
-//                throw new RuntimeException("Encrypted index is not implemented yet");
+                DecryptData(IndexData.array(), (int) Info.IndexSize);
             }
 
             // Check SHA1 value.
             byte[] IndexHash = new byte[20];
-            FSHA1.HashBuffer(IndexData, IndexData.length, IndexHash);
-
+            FSHA1.HashBuffer(IndexData.array(), IndexData.capacity(), IndexHash);
             if (FMemory.Memcmp(IndexHash, Info.IndexHash, sizeof(IndexHash)) != 0)
             {
                 String StoredIndexHash, ComputedIndexHash;
-                StoredIndexHash = "0x";
-                ComputedIndexHash = "0x";
+                StoredIndexHash = TEXT("0x");
+                ComputedIndexHash = TEXT("0x");
 
                 for (int ByteIndex = 0; ByteIndex < 20; ++ByteIndex)
                 {
-                    StoredIndexHash += FString.Printf("%02X", Info.IndexHash[ByteIndex]);
-                    ComputedIndexHash += FString.Printf("%02X", IndexHash[ByteIndex]);
+                    StoredIndexHash += FString.Printf(TEXT("%02X"), Info.IndexHash[ByteIndex]);
+                    ComputedIndexHash += FString.Printf(TEXT("%02X"), IndexHash[ByteIndex]);
                 }
 
                 throw new RuntimeException(String.join(System.lineSeparator(), Arrays.asList(
@@ -221,32 +208,31 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                 )));
             }
 
-            // TODO: Remove
-            IndexMapping = ByteBuffer.wrap(IndexData);
+            // Read the default mount point and all entries.
+            NumEntries = 0;
+            MountPoint = UE4Deserializer.ReadString(IndexData);
+            NumEntries = UE4Deserializer.ReadInt(IndexData);
 
-//            IndexMapping.position(0);
-            MountPoint = UE4Deserializer.ReadString(IndexMapping);
-            NumEntries = UE4Deserializer.ReadInt(IndexMapping);
-
+            MountPoint = MakeDirectoryFromPath(MountPoint);
+            // Allocate enough memory to hold all entries (and not reallocate while they're being added to it).
+            Files.ensureCapacity(NumEntries);
 
             for (int EntryIndex = 0; EntryIndex < NumEntries; EntryIndex++)
             {
                 // Serialize from memory.
                 final FPakEntry Entry = new FPakEntry();
                 String Filename;
-                Filename = UE4Deserializer.ReadString(IndexMapping);
-                Entry.Deserialize(IndexMapping, Info.Version);
+                Filename = UE4Deserializer.ReadString(IndexData);
+                Entry.Deserialize(IndexData, Info.Version);
 
                 // Add new file info.
                 Files.add(Entry);
 
-
                 // Construct Index of all directories in pak file.
                 String Path = FPaths.GetPath(Filename);
                 Path = MakeDirectoryFromPath(Path);
-
                 Map<String, FPakEntry> Directory = Index.get(Path);
-                if (Directory != null)
+                if (Directory != NULL)
                 {
                     Directory.put(FPaths.GetCleanFilename(Filename), Entry);
                 }
@@ -266,7 +252,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                         {
                             Path = FString.Left(Path, Offset.intValue());
                             Path = MakeDirectoryFromPath(Path);
-                            if (!Index.containsKey(Path))
+                            if (Index.get(Path) == NULL)
                             {
                                 Index.put(Path, new HashMap<>());
                             }
@@ -280,7 +266,6 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             }
         }
     }
-
 
 
     @Override

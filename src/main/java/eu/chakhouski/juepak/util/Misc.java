@@ -33,6 +33,8 @@ public class Misc
 
     private static Map<Class<?>, MethodHandle> operatorBoolCache = new HashMap<>();
 
+    public static Object NULL = null;
+
     public static Map<String, FPakEntry> GetSortedEntries(FPakFile PakFile, Comparator<FPakEntry> Comparator)
     {
         final TreeMap<FPakEntry, String> Map = new TreeMap<>(Comparator);
