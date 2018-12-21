@@ -1,5 +1,7 @@
 package eu.chakhouski.juepak.ue4;
 
+import java.util.Arrays;
+
 public class FMemory
 {
     public static int Memcmp(byte[] a, byte[] b, int size)
@@ -12,18 +14,15 @@ public class FMemory
         return cmp;
     }
 
-    public static byte[] Memset(byte[] Dest, byte Char, long Count)
+    public static byte[] Memset(byte[] Dest, byte Char, int Count)
     {
-        for (int i = 0; i < Count; i++)
-        {
-            Dest[i] = Char;
-        }
-
+        Arrays.fill(Dest, 0, Count, Char);
         return Dest;
     }
 
-    public static byte[] Memset(byte[] Dest, int Int, long Count)
+    public static byte[] Memset(byte[] Dest, int Int, int Count)
     {
-        return Memset(Dest, (byte)Int, Count);
+        Arrays.fill(Dest, 0, Count, (byte)Int);
+        return Dest;
     }
 }

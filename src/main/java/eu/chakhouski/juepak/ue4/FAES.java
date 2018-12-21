@@ -196,6 +196,18 @@ public class FAES
      * @param NumBytes the size of the buffer
      * @param KeyBytes a null terminated string that is a 32 byte multiple length
      */
+    public static void DecryptData(byte[] Contents, int NumBytes, byte[] KeyBytes)
+    {
+        DecryptData(Contents, NumBytes, KeyBytes, 0, KeyBytes.length);
+    }
+
+    /**
+     * Decrypts a chunk of data using a specific key
+     *
+     * @param Contents the buffer to encrypt
+     * @param NumBytes the size of the buffer
+     * @param KeyBytes a null terminated string that is a 32 byte multiple length
+     */
     public static void DecryptData(byte[] Contents, int NumBytes, byte[] KeyBytes, int KeyOffset, int NumKeyBytes)
     {
         checkf((NumBytes & (AESBlockSize - 1)) == 0, TEXT("NumBytes needs to tbe a multiple of 16 bytes"));

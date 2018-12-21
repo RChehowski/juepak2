@@ -3,18 +3,19 @@ package eu.chakhouski.juepak;
 import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.util.PakExtractor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import static java.nio.channels.Channels.newChannel;
 
 public final class FFileIterator implements Iterator<FPakEntry>
 {
@@ -111,12 +112,38 @@ public final class FFileIterator implements Iterator<FPakEntry>
 
         // Create a directory if none yet
         if (!Files.isDirectory(AbsoluteDir))
+        {
             Files.createDirectories(AbsoluteDir);
+        }
 
         // Extract to file channel
-        try (final FileOutputStream Fos = new FileOutputStream(AbsolutePath.toFile()))
+        try (final FileOutputStream FileOS = new FileOutputStream(AbsolutePath.toFile()))
         {
-            PakExtractor.Extract(PakFile, CachedPakEntry, Channels.newChannel(Fos));
+            PakExtractor.Extract(PakFile, CachedPakEntry, newChannel(FileOS));
         }
+    }
+
+    @APIBridgeMethod
+    public void extractToMemory(final byte[] buffer) throws IOException
+    {
+        extractToMemory(buffer, 0);
+    }
+
+    @APIBridgeMethod
+    public void extractToMemory(final byte[] buffer, final int offset) throws IOException
+    {
+        PakExtractor.Extract(PakFile, CachedPakEntry, newChannel(new OutputStream() {
+            int position = 0;
+
+            @Override
+            public void write(int b) { throw new IllegalStateException("Should not get here"); }
+
+            @Override
+            public void write(byte[] InBuffer, int InOffset, int InLength) throws IOException
+            {
+                System.arraycopy(InBuffer, InOffset, buffer, offset + position, InLength);
+                position += InLength;
+            }
+        }));
     }
 }

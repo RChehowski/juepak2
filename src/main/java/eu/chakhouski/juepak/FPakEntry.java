@@ -24,7 +24,7 @@ public class FPakEntry
     /** File SHA1 value. */
     public byte[] Hash = new byte[20];
     /** Array of compression blocks that describe how to decompress this pak entry. */
-    public List<FPakCompressedBlock> CompressionBlocks;
+    public FPakCompressedBlock[] CompressionBlocks;
     /** Size of a compressed block in the file. */
     public int CompressionBlockSize;
     /** True is file is encrypted. */
@@ -61,7 +61,7 @@ public class FPakEntry
             SerializedSize += sizeof(bEncrypted) + sizeof(CompressionBlockSize);
             if (CompressionMethod != COMPRESS_None)
             {
-                SerializedSize += sizeof(FPakCompressedBlock.class) * CompressionBlocks.size() + sizeof(int.class);
+                SerializedSize += sizeof(FPakCompressedBlock.class) * CompressionBlocks.length + sizeof(int.class);
             }
         }
         if (Version < FPakInfo.PakFile_Version_NoTimestamps)
@@ -95,9 +95,7 @@ public class FPakEntry
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                throw new IllegalStateException("No support for compressed blocks yet");
-
-//                Ar << CompressionBlocks;
+                CompressionBlocks = UE4Deserializer.ReadArray(Ar, FPakCompressedBlock.class);
             }
 
             bEncrypted = Ar.get();
