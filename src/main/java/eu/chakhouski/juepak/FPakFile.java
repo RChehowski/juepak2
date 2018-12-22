@@ -190,15 +190,15 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                 }
 
                 throw new RuntimeException(String.join(System.lineSeparator(), Arrays.asList(
-                        "Corrupt pak index detected!",
-                        " Filename: " + PakFilename,
-                        " Encrypted: " + Info.bEncryptedIndex,
-                        " Total Size: " + CachedTotalSize,
-                        " Index Offset: " + Info.IndexOffset,
-                        " Index Size: " + Info.IndexSize,
-                        " Stored Index Hash: " + StoredIndexHash,
-                        " Computed Index Hash: " + ComputedIndexHash,
-                        "Corrupted index in pak file (CRC mismatch)."
+                    "Corrupt pak index detected!",
+                    " Filename: " + PakFilename,
+                    " Encrypted: " + Info.bEncryptedIndex,
+                    " Total Size: " + CachedTotalSize,
+                    " Index Offset: " + Info.IndexOffset,
+                    " Index Size: " + Info.IndexSize,
+                    " Stored Index Hash: " + StoredIndexHash,
+                    " Computed Index Hash: " + ComputedIndexHash,
+                    "Corrupted index in pak file (CRC mismatch)."
                 )));
             }
 
