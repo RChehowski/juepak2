@@ -100,7 +100,7 @@ public class FPakEntry
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                CompressionBlocks = (FPakCompressedBlock[]) UE4Deserializer.ReadArray(Ar, FPakCompressedBlock.class);
+                CompressionBlocks = UE4Deserializer.ReadStructArray(Ar, FPakCompressedBlock.class);
             }
 
             bEncrypted = Ar.get();

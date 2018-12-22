@@ -61,8 +61,43 @@ public class UE4Deserializer
     }
 
 
+    public static <T> T[] ReadStructArray(ByteBuffer b, Class<T> elementType)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = ReadInt(b);
 
-    public static<T> Object ReadArray(ByteBuffer b, Class<T> elementType)
+        @SuppressWarnings("unchecked")
+        final T[] array = (T[])Array.newInstance(elementType, NumElements);
+
+        try
+        {
+            final Constructor<T> defaultConstructor = elementType.getConstructor();
+
+            for (int i = 0; i < NumElements; i++)
+            {
+                final T item = defaultConstructor.newInstance();
+                if (item instanceof UEDeserializable)
+                {
+                    ((UEDeserializable) item).Deserialize(b);
+                }
+                else
+                {
+                    throw new IllegalArgumentException("Can not deserialize " + elementType +
+                            " not an instance of " + UEDeserializable.class);
+                }
+
+                array[i] = item;
+            }
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return array;
+    }
+
+    public static <T> Object ReadArray(ByteBuffer b, Class<T> elementType)
     {
         b.order(ByteOrder.LITTLE_ENDIAN);
 
@@ -75,11 +110,11 @@ public class UE4Deserializer
             )));
         }
 
-        // Read number of elements to deserialize
-        final int NumElements = ReadInt(b);
-
         if (elementType.isPrimitive())
         {
+            // Read number of elements to deserialize
+            final int NumElements = ReadInt(b);
+
             if (elementType == boolean.class)
             {
                 final boolean[] array = new boolean[NumElements];
@@ -146,31 +181,7 @@ public class UE4Deserializer
         }
         else
         {
-            final Object array = Array.newInstance(elementType, NumElements);
-            try {
-                final Constructor<T> defaultConstructor = elementType.getConstructor();
-
-                for (int i = 0; i < NumElements; i++)
-                {
-                    final T item = defaultConstructor.newInstance();
-                    if (item instanceof UEDeserializable)
-                    {
-                        ((UEDeserializable) item).Deserialize(b);
-                    }
-                    else
-                    {
-                        throw new IllegalArgumentException("Can not deserialize " + elementType +
-                            " not an instance of " + UEDeserializable.class);
-                    }
-
-                    Array.set(array, i, item);
-                }
-            }
-            catch (ReflectiveOperationException e) {
-                throw new RuntimeException(e);
-            }
-
-            return array;
+            return ReadStructArray(b, elementType);
         }
     }
 }
