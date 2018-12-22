@@ -1,17 +1,13 @@
 package eu.chakhouski.juepak.util;
 
-import eu.chakhouski.juepak.annotations.FStruct;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
-import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 import static java.lang.String.join;
 import static java.lang.System.lineSeparator;
 import static java.util.Arrays.asList;
@@ -61,16 +57,27 @@ public class UE4Deserializer
     }
 
 
+    private static int checkDeserializeArraySize(int NumElements)
+    {
+        // Check array size (if negative)
+        if (NumElements < 0)
+        {
+            throw new NegativeArraySizeException(String.format("Array size must be within [%d, %d), given: %d",
+                    0, Integer.MAX_VALUE, NumElements));
+        }
+
+        return NumElements;
+    }
+
     public static <T> T[] ReadStructArray(ByteBuffer b, Class<T> elementType)
     {
         // Read number of elements to deserialize
-        final int NumElements = ReadInt(b);
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
 
         @SuppressWarnings("unchecked")
         final T[] array = (T[])Array.newInstance(elementType, NumElements);
 
-        try
-        {
+        try {
             final Constructor<T> defaultConstructor = elementType.getConstructor();
 
             for (int i = 0; i < NumElements; i++)
@@ -78,106 +85,170 @@ public class UE4Deserializer
                 final T item = defaultConstructor.newInstance();
                 if (item instanceof UEDeserializable)
                 {
-                    ((UEDeserializable) item).Deserialize(b);
+                    try {
+                        ((UEDeserializable) item).Deserialize(b);
+                    }
+                    catch (BufferUnderflowException | BufferOverflowException be) {
+                        // Print buffer info
+                        System.err.println("Buffer exception caused: " + b.toString());
+
+                        // Rethrow exception, it is fatal, unfortunately :C
+                        throw be;
+                    }
                 }
                 else
                 {
-                    throw new IllegalArgumentException("Can not deserialize " + elementType +
-                            " not an instance of " + UEDeserializable.class);
+                    throw new IllegalArgumentException(join(lineSeparator(), asList(
+                        "Unsupported element class",
+                        "   Expected: Subclass of " + UEDeserializable.class,
+                        "   Actual: " + elementType
+                    )));
                 }
 
                 array[i] = item;
             }
         }
-        catch (ReflectiveOperationException e)
-        {
+        catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
 
         return array;
     }
 
+    // 1 byte per element
+    public static boolean[] ReadBooleanArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final boolean[] array = new boolean[NumElements];
+
+        // Transfer to the array, casting each element to boolean
+        for (int i = 0; i < NumElements; array[i++] = b.get() != 0);
+
+        return array;
+    }
+
+    public static byte[] ReadByteArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final byte[] array = new byte[NumElements];
+        b.get(array);
+
+        return array;
+    }
+
+    // 2 bytes per element
+    public static char[] ReadCharArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final char[] array = new char[NumElements];
+        b.asCharBuffer().get(array);
+
+        return array;
+    }
+
+    public static short[] ReadShortArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final short[] array = new short[NumElements];
+        b.asShortBuffer().get(array);
+
+        return array;
+    }
+
+    // 4 bytes per element
+    public static int[] ReadIntArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final int[] array = new int[NumElements];
+        b.asIntBuffer().get(array);
+
+        return array;
+    }
+
+    public static float[] ReadFloatArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final float[] array = new float[NumElements];
+        b.asFloatBuffer().get(array);
+
+        return array;
+    }
+
+    // 8 bytes per element
+    public static long[] ReadLongArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final long[] array = new long[NumElements];
+        b.asLongBuffer().get(array);
+
+        return array;
+    }
+
+    public static double[] ReadDoubleArray(ByteBuffer b)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        final double[] array = new double[NumElements];
+        b.asDoubleBuffer().get(array);
+
+        return array;
+    }
+
+    /**
+     * Reads a generic array from a buffer.
+     * @param b Buffer, from which the data will be read.
+     * @param elementType Class of the element of the array.
+     * @param <T> Type of the element.
+     *
+     * @return A newly created array of deserialized items. It is an object because it can be a primitive array.
+     */
     public static <T> Object ReadArray(ByteBuffer b, Class<T> elementType)
     {
         b.order(ByteOrder.LITTLE_ENDIAN);
 
-        if (!elementType.isAnnotationPresent(FStruct.class))
-        {
-            throw new IllegalArgumentException(join(lineSeparator(), asList(
-                "Unsupported element class",
-                "   Expected: Subclass of " + FStruct.class,
-                "   Actual: " + elementType
-            )));
-        }
-
         if (elementType.isPrimitive())
         {
-            // Read number of elements to deserialize
-            final int NumElements = ReadInt(b);
-
             if (elementType == boolean.class)
-            {
-                final boolean[] array = new boolean[NumElements];
+                return ReadBooleanArray(b);
 
-                // Transfer to the array, casting each element to boolean
-                for (int i = 0; i < NumElements; array[i++] = b.get() != 0);
-
-                return array;
-
-            }
             else if (elementType == byte.class)
-            {
-                final byte[] array = new byte[NumElements];
-                b.get(array);
+                return ReadByteArray(b);
 
-                return array;
-            }
             else if (elementType == char.class)
-            {
-                final char[] array = new char[NumElements];
-                b.asCharBuffer().get(array);
+                return ReadCharArray(b);
 
-                return array;
-            }
             else if (elementType == short.class)
-            {
-                final short[] array = new short[NumElements];
-                b.asShortBuffer().get(array);
+                return ReadShortArray(b);
 
-                return array;
-            }
             else if (elementType == int.class)
-            {
-                final int[] array = new int[NumElements];
-                b.asIntBuffer().get(array);
+                return ReadIntArray(b);
 
-                return array;
-            }
             else if (elementType == float.class)
-            {
-                final float[] array = new float[NumElements];
-                b.asFloatBuffer().get(array);
+                return ReadFloatArray(b);
 
-                return array;
-            }
             else if (elementType == long.class)
-            {
-                final long[] array = new long[NumElements];
-                b.asLongBuffer().get(array);
+                return ReadLongArray(b);
 
-                return array;
-            }
             else if (elementType == double.class)
-            {
-                final double[] array = new double[NumElements];
-                b.asDoubleBuffer().get(array);
+                return ReadDoubleArray(b);
 
-                return array;
-            }
-            else
-            {
-                throw new IllegalArgumentException("Unknown primitive type: " + elementType);
-            }
+            // Unknown primitive type
+            throw new IllegalArgumentException("Unknown primitive type: " + elementType);
         }
         else
         {

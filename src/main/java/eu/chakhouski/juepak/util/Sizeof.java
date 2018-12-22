@@ -5,6 +5,7 @@ import eu.chakhouski.juepak.annotations.FStruct;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -68,16 +69,19 @@ public class Sizeof
         else if (clazz.isAnnotationPresent(FStruct.class))
         {
             if (!Object.class.equals(clazz.getSuperclass()))
+            {
                 throw new RuntimeException("FStruct must only extend Object");
+            }
 
-            if (clazz.getInterfaces().length != 0)
-                throw new RuntimeException("FStruct must not implement any interfaces");
-
+            // Interfaces such as UESerializable and UEDeserializable are allowed
 
             int calculatedSize = 0;
+            final Field[] fields = clazz.getDeclaredFields();
 
-            for (final Field f : clazz.getDeclaredFields())
+            for (int i = 0, length = fields.length; i < length; i++)
             {
+                final Field f = fields[i];
+
                 if (!Modifier.isStatic(f.getModifiers()))
                 {
                     if (f.isAnnotationPresent(StaticSize.class))

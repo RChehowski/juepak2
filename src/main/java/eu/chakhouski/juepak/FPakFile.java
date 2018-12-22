@@ -54,12 +54,6 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     @JavaDecoratorField
     public FileInputStream InputStream;
 
-    /**
-     * Cached size of pak entry for a particular PAK file (because it is constant within a file)
-     */
-    @JavaDecoratorField
-    private long PakEntrySerializedSize = -1;
-
 
     // === Constructor and destructor ===
 
@@ -274,8 +268,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         return new FFileIterator(this);
     }
 
-
-    public static String MakeDirectoryFromPath(String Path)
+    private static String MakeDirectoryFromPath(String Path)
     {
         if (Path.length() > 0 && Path.charAt(Path.length() - 1) != '/')
         {
@@ -285,17 +278,5 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         {
             return Path;
         }
-    }
-
-    @JavaDecoratorMethod
-    public long GetPakEntrySerializedSize()
-    {
-        if (PakEntrySerializedSize == -1)
-        {
-            final FPakEntry PakEntry = new FPakEntry();
-            PakEntrySerializedSize = PakEntry.GetSerializedSize(Info.Version);
-        }
-
-        return PakEntrySerializedSize;
     }
 }

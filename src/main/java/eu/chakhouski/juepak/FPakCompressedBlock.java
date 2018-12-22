@@ -70,4 +70,14 @@ public class FPakCompressedBlock implements UESerializable, UEDeserializable
         CompressedStart = b.getLong();
         CompressedEnd = b.getLong();
     }
+
+    @Override
+    @JavaDecoratorMethod
+    public String toString()
+    {
+        return "FPakCompressedBlock{" +
+            "CompressedStart=" + CompressedStart + ", " +
+            "CompressedEnd=" + CompressedEnd +
+        '}';
+    }
 }

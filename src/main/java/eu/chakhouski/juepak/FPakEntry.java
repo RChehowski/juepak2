@@ -4,6 +4,7 @@ import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.ue4.FMemory;
+import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.nio.ByteBuffer;
@@ -66,7 +67,9 @@ public class FPakEntry
             SerializedSize += sizeof(bEncrypted) + sizeof(CompressionBlockSize);
             if (CompressionMethod != COMPRESS_None)
             {
-                SerializedSize += sizeof(FPakCompressedBlock.class) * CompressionBlocks.length + sizeof(int.class);
+                SerializedSize +=
+                    /* array items */ sizeof(FPakCompressedBlock.class) * CompressionBlocks.length +
+                    /* array size  */ sizeof(int.class);
             }
         }
         if (Version < FPakInfo.PakFile_Version_NoTimestamps)
@@ -156,5 +159,26 @@ public class FPakEntry
             return false;
 
         return operatorEQ((FPakEntry) o);
+    }
+
+    @Override
+    @JavaDecoratorMethod
+    public String toString()
+    {
+        final StringBuffer sb = new StringBuffer("FPakEntry{");
+
+//        sb.append("Offset=").append(Offset);
+        sb.append("Size=").append(Size);
+        sb.append(", UncompressedSize=").append(UncompressedSize);
+        sb.append(", CompressionMethod=").append(CompressionMethod);
+        sb.append(", Hash=");
+        sb.append(Hash == null ? "null" : FString.BytesToHex(Hash));
+        sb.append(", CompressionBlocks=").append(CompressionBlocks == null ? "null" : Arrays.asList(CompressionBlocks).toString());
+        sb.append(", CompressionBlockSize=").append(CompressionBlockSize);
+        sb.append(", bEncrypted=").append(bEncrypted);
+//        sb.append(", Verified=").append(Verified);
+        sb.append('}');
+
+        return sb.toString();
     }
 }

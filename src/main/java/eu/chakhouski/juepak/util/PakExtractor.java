@@ -41,7 +41,7 @@ public class PakExtractor
         final FileChannel Channel = PakInputStream.getChannel();
 
         // Deserialize header once again
-        final long EntrySerializedSize = PakFile.GetPakEntrySerializedSize();
+        final long EntrySerializedSize = Entry.GetSerializedSize(PakInfo.Version);
         CheckEntry.Deserialize(Channel.map(MapMode.READ_ONLY, Entry.Offset, EntrySerializedSize), PakInfo.Version);
 
         // Compare entries
