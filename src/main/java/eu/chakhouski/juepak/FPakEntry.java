@@ -1,11 +1,13 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
@@ -13,6 +15,9 @@ import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 public class FPakEntry
 {
+    @JavaDecoratorField
+    private static final FPakCompressedBlock[] SharedDummyCompressionBlocks = new FPakCompressedBlock[0];
+
     /** Offset into pak file where the file is stored.*/
     public long Offset;
     /** Serialized file size. */
@@ -24,7 +29,7 @@ public class FPakEntry
     /** File SHA1 value. */
     public byte[] Hash = new byte[20];
     /** Array of compression blocks that describe how to decompress this pak entry. */
-    public FPakCompressedBlock[] CompressionBlocks;
+    public FPakCompressedBlock[] CompressionBlocks = SharedDummyCompressionBlocks;
     /** Size of a compressed block in the file. */
     public int CompressionBlockSize;
     /** True is file is encrypted. */
@@ -95,7 +100,7 @@ public class FPakEntry
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                CompressionBlocks = UE4Deserializer.ReadArray(Ar, FPakCompressedBlock.class);
+                CompressionBlocks = (FPakCompressedBlock[]) UE4Deserializer.ReadArray(Ar, FPakCompressedBlock.class);
             }
 
             bEncrypted = Ar.get();
@@ -118,7 +123,7 @@ public class FPakEntry
             bEncrypted == B.bEncrypted &&
             CompressionBlockSize == B.CompressionBlockSize &&
             FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) == 0 &&
-            CompressionBlocks == B.CompressionBlocks;
+            Arrays.deepEquals(CompressionBlocks, B.CompressionBlocks);
     }
 
     /**
@@ -136,7 +141,7 @@ public class FPakEntry
             bEncrypted != B.bEncrypted ||
             CompressionBlockSize != B.CompressionBlockSize ||
             FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) != 0 ||
-            CompressionBlocks != B.CompressionBlocks;
+            !Arrays.deepEquals(CompressionBlocks, B.CompressionBlocks);
     }
 
 

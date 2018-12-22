@@ -6,26 +6,18 @@ import eu.chakhouski.juepak.ue4.FString;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.function.Consumer;
 
 public class Main
 {
     public static void main(String[] args) throws Exception
     {
-        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(new Consumer<byte[]>()
-        {
-            @Override
-            public void accept(byte[] bytes)
-            {
-                final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
-
-                System.arraycopy(decode, 0, bytes, 0, bytes.length);
-            }
+        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes -> {
+            final byte[] decode = Base64.getDecoder().decode("qgI1qdSNOmIUU7vQ2w6PorzF7Maiu/a1wulgdk+ssu0=");
+            System.arraycopy(decode, 0, bytes, 0, decode.length);
         });
 
+        final String file = "/Users/netherwire/Desktop/Shooter/MacNoEditor/UEShooter.app/Contents/UE4/UEShooter/Content/Paks/UEShooter-MacNoEditor.pak";
 
-
-        final String file = "C:\\Users\\ASUS\\Desktop\\WindowsNoEditor\\FPS\\Content\\Paks\\FPS-WindowsNoEditor.pak";
 
         try (final FPakFile fPakFile = new FPakFile(file))
         {
@@ -42,8 +34,8 @@ public class Main
                         "sha1: " + FString.BytesToHex(Entry.Hash)
                 )));
 
-//                final byte[] bytes = new byte[(int)Entry.UncompressedSize];
-//                It.extractToMemory(bytes);
+                final byte[] bytes = new byte[(int)Entry.UncompressedSize];
+                It.extractToMemory(bytes);
             }
         }
         catch (IOException e)

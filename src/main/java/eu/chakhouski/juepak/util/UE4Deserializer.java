@@ -3,13 +3,15 @@ package eu.chakhouski.juepak.util;
 import eu.chakhouski.juepak.annotations.FStruct;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Objects;
 
+import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 import static java.lang.String.join;
 import static java.lang.System.lineSeparator;
 import static java.util.Arrays.asList;
@@ -21,7 +23,7 @@ public class UE4Deserializer
         // Ensure order is little endian
         b.order(ByteOrder.LITTLE_ENDIAN);
 
-        int SaveNum = b.getInt();
+        int SaveNum = ReadInt(b);
 
         boolean LoadUCS2Char = SaveNum < 0;
         if (LoadUCS2Char)
@@ -58,7 +60,9 @@ public class UE4Deserializer
         return b.order(ByteOrder.LITTLE_ENDIAN).getLong();
     }
 
-    public static<T> T[] ReadArray(ByteBuffer b, Class<T> elementType)
+
+
+    public static<T> Object ReadArray(ByteBuffer b, Class<T> elementType)
     {
         b.order(ByteOrder.LITTLE_ENDIAN);
 
@@ -66,55 +70,107 @@ public class UE4Deserializer
         {
             throw new IllegalArgumentException(join(lineSeparator(), asList(
                 "Unsupported element class",
-                "   Expected: Subclass of " + Objects.toString(FStruct.class),
-                "   Actual: " + Objects.toString(elementType)
+                "   Expected: Subclass of " + FStruct.class,
+                "   Actual: " + elementType
             )));
         }
 
+        // Read number of elements to deserialize
         final int NumElements = ReadInt(b);
 
-        @SuppressWarnings("unchecked")
-        final T[] containingArray = (T[])Array.newInstance(elementType, NumElements);
-
-        for (int i = 0; i < NumElements; i++)
+        if (elementType.isPrimitive())
         {
-            containingArray[i] = ReflectDeserialize(b, elementType);
-        }
+            if (elementType == boolean.class)
+            {
+                final boolean[] array = new boolean[NumElements];
 
-        return containingArray;
-    }
+                // Transfer to the array, casting each element to boolean
+                for (int i = 0; i < NumElements; array[i++] = b.get() != 0);
 
-    private static<T> T ReflectDeserialize(ByteBuffer b, Class<T> elementType)
-    {
-        final Field[] declaredFields = elementType.getDeclaredFields();
+                return array;
 
-        final T newInstance;
-        try {
-            newInstance = elementType.newInstance();
-        }
-        catch (InstantiationException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-
-        for (int i = 0; i < declaredFields.length; i++)
-        {
-            final Field f = declaredFields[i];
-
-            try {
-                final Class<?> fieldType = f.getType();
-
-                if (fieldType == int.class)
-                    f.setInt(newInstance, ReadInt(b));
-                else if (fieldType == long.class)
-                    f.setLong(newInstance, ReadLong(b));
-                else
-                    throw new RuntimeException("Unknown type: " + Objects.toString(fieldType));
             }
-            catch (IllegalAccessException e) {
+            else if (elementType == byte.class)
+            {
+                final byte[] array = new byte[NumElements];
+                b.get(array);
+
+                return array;
+            }
+            else if (elementType == char.class)
+            {
+                final char[] array = new char[NumElements];
+                b.asCharBuffer().get(array);
+
+                return array;
+            }
+            else if (elementType == short.class)
+            {
+                final short[] array = new short[NumElements];
+                b.asShortBuffer().get(array);
+
+                return array;
+            }
+            else if (elementType == int.class)
+            {
+                final int[] array = new int[NumElements];
+                b.asIntBuffer().get(array);
+
+                return array;
+            }
+            else if (elementType == float.class)
+            {
+                final float[] array = new float[NumElements];
+                b.asFloatBuffer().get(array);
+
+                return array;
+            }
+            else if (elementType == long.class)
+            {
+                final long[] array = new long[NumElements];
+                b.asLongBuffer().get(array);
+
+                return array;
+            }
+            else if (elementType == double.class)
+            {
+                final double[] array = new double[NumElements];
+                b.asDoubleBuffer().get(array);
+
+                return array;
+            }
+            else
+            {
+                throw new IllegalArgumentException("Unknown primitive type: " + elementType);
+            }
+        }
+        else
+        {
+            final Object array = Array.newInstance(elementType, NumElements);
+            try {
+                final Constructor<T> defaultConstructor = elementType.getConstructor();
+
+                for (int i = 0; i < NumElements; i++)
+                {
+                    final T item = defaultConstructor.newInstance();
+                    if (item instanceof UEDeserializable)
+                    {
+                        ((UEDeserializable) item).Deserialize(b);
+                    }
+                    else
+                    {
+                        throw new IllegalArgumentException("Can not deserialize " + elementType +
+                            " not an instance of " + UEDeserializable.class);
+                    }
+
+                    Array.set(array, i, item);
+                }
+            }
+            catch (ReflectiveOperationException e) {
                 throw new RuntimeException(e);
             }
-        }
 
-        return newInstance;
+            return array;
+        }
     }
 }
