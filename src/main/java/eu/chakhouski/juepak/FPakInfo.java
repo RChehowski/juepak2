@@ -12,28 +12,32 @@ import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 @FStruct
 public class FPakInfo
 {
-    /**
-     * Magic number to use in header
-     */
-    public static int PakFile_Magic = 0x5A6F12E1;
+    // enum
+    // {
+        /**
+         * Magic number to use in header
+         */
+        public static int PakFile_Magic = 0x5A6F12E1;
 
-    /**
-     * Size of cached data
-     */
-    public static int MaxChunkDataSize = 64*1024;
+        /**
+         * Size of cached data
+         */
+        public static int MaxChunkDataSize = 64*1024;
+    // }
 
 
-    /**
-     * Version numbers.
-     */
-    public static int PakFile_Version_Initial = 1;
-    public static int PakFile_Version_NoTimestamps = 2;
-    public static int PakFile_Version_CompressionEncryption = 3;
-    public static int PakFile_Version_IndexEncryption = 4;
-    public static int PakFile_Version_RelativeChunkOffsets = 5;
+    /** Version numbers. */
+    //enum
+    //{
+        public static int PakFile_Version_Initial = 1;
+        public static int PakFile_Version_NoTimestamps = 2;
+        public static int PakFile_Version_CompressionEncryption = 3;
+        public static int PakFile_Version_IndexEncryption = 4;
+        public static int PakFile_Version_RelativeChunkOffsets = 5;
 
-    public static int PakFile_Version_Last = 6;
-    public static int PakFile_Version_Latest = PakFile_Version_Last - 1;
+        public static int PakFile_Version_Last = 6;
+        public static int PakFile_Version_Latest = PakFile_Version_Last - 1;
+    // }
 
 
 

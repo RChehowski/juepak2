@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak.util;
 
+import eu.chakhouski.juepak.ECompressionFlags;
 import eu.chakhouski.juepak.FPakCompressedBlock;
 import eu.chakhouski.juepak.FPakEntry;
 import eu.chakhouski.juepak.FPakFile;
@@ -47,19 +48,18 @@ public class PakExtractor
         // Compare entries
         if (!Entry.equals(CheckEntry))
         {
-            throw new RuntimeException("Entry is invalid");
+            throw new RuntimeException("Entry is invalid\n  Expected: " + Entry + "\n  Got: " + CheckEntry);
         }
 
         // Extract if not matching
         final long EntryDataOffset = Entry.Offset + EntrySerializedSize;
         final long EntryUncompressedSize = Entry.UncompressedSize;
 
-        final FPakCompressedBlock[] compressionBlocks = Entry.CompressionBlocks;
-        final int numCompressionBlocks = compressionBlocks.length;
-
+        // Check if an entry is encrypted
         if (BOOL(Entry.bEncrypted))
         {
-            if (numCompressionBlocks == 0)
+            // Check if an entry is compressed
+            if (Entry.CompressionMethod == ECompressionFlags.COMPRESS_None)
             {
                 FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(SharedKeyBytes);
 
@@ -86,21 +86,28 @@ public class PakExtractor
                 // Erase password bytes
                 FMemory.Memset(SharedKeyBytes, 0, sizeof(SharedKeyBytes));
             }
-            else
-            {
-                throw new UnsupportedOperationException("Compressed extraction is not supported");
-            }
+//            else
+//            {
+//                final FPakCompressedBlock[] compressionBlocks = Entry.CompressionBlocks;
+//
+//                throw new UnsupportedOperationException("Compressed extraction is not supported: " +
+//                        ECompressionFlags.StaticToString(Entry.CompressionMethod));
+//            }
         }
         else
         {
-            if (numCompressionBlocks == 0)
+            // Check if an entry is compressed
+            if (Entry.CompressionMethod == ECompressionFlags.COMPRESS_None)
             {
                 Channel.transferTo(EntryDataOffset, EntryUncompressedSize, ExtractionTarget);
             }
-            else
-            {
-                throw new UnsupportedOperationException("Compressed extraction is not supported");
-            }
+//            else
+//            {
+//                final FPakCompressedBlock[] compressionBlocks = Entry.CompressionBlocks;
+//
+//                throw new UnsupportedOperationException("Compressed extraction is not supported: " +
+//                        ECompressionFlags.StaticToString(Entry.CompressionMethod));
+//            }
         }
     }
 }

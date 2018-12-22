@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
@@ -14,6 +15,7 @@ import java.util.List;
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
+@FStruct
 public class FPakEntry
 {
     @JavaDecoratorField
