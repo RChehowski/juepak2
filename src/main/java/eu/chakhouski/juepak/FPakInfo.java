@@ -1,8 +1,8 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
-import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.ue4.FMemory;
 
 import java.nio.ByteBuffer;
@@ -81,7 +81,7 @@ public class FPakInfo
 
     /**
      */
-    long HasRelativeCompressedChunkOffsets()
+    public long HasRelativeCompressedChunkOffsets()
     {
         return Version >= PakFile_Version_RelativeChunkOffsets ? 1 : 0;
     }

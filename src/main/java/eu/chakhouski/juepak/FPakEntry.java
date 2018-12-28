@@ -10,7 +10,6 @@ import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.List;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
@@ -32,7 +31,7 @@ public class FPakEntry
     /** File SHA1 value. */
     public byte[] Hash = new byte[20];
     /** Array of compression blocks that describe how to decompress this pak entry. */
-    public FPakCompressedBlock[] CompressionBlocks = SharedDummyCompressionBlocks;
+    public FPakCompressedBlock[] CompressionBlocks;
     /** Size of a compressed block in the file. */
     public int CompressionBlockSize;
     /** True is file is encrypted. */
@@ -45,15 +44,7 @@ public class FPakEntry
      */
     public FPakEntry()
     {
-        Offset = -1;
-        Size = 0;
-        UncompressedSize = 0;
-        CompressionMethod = 0;
-        CompressionBlockSize = 0;
-        bEncrypted = 0;
-        Verified = false;
-
-        FMemory.Memset(Hash, 0, sizeof(Hash));
+        Clean();
     }
 
     /**
@@ -113,6 +104,22 @@ public class FPakEntry
         }
     }
 
+    @JavaDecoratorMethod
+    public final FPakEntry Clean()
+    {
+        Offset = -1;
+        Size = 0;
+        UncompressedSize = 0;
+        CompressionMethod = 0;
+        CompressionBlocks = SharedDummyCompressionBlocks;
+        CompressionBlockSize = 0;
+        bEncrypted = 0;
+        Verified = false;
+
+        FMemory.Memset(Hash, 0, sizeof(Hash));
+        return this;
+    }
+
     /**
      * Compares two FPakEntry structs.
      */
@@ -167,20 +174,16 @@ public class FPakEntry
     @JavaDecoratorMethod
     public String toString()
     {
-        final StringBuffer sb = new StringBuffer("FPakEntry{");
-
-//        sb.append("Offset=").append(Offset);
-        sb.append("Size=").append(Size);
-        sb.append(", UncompressedSize=").append(UncompressedSize);
-        sb.append(", CompressionMethod=").append(CompressionMethod);
-        sb.append(", Hash=");
-        sb.append(Hash == null ? "null" : FString.BytesToHex(Hash));
-        sb.append(", CompressionBlocks=").append(CompressionBlocks == null ? "null" : Arrays.asList(CompressionBlocks).toString());
-        sb.append(", CompressionBlockSize=").append(CompressionBlockSize);
-        sb.append(", bEncrypted=").append(bEncrypted);
-//        sb.append(", Verified=").append(Verified);
-        sb.append('}');
-
-        return sb.toString();
+        return "FPakEntry{" +
+            "Offset=" + Offset +
+            ", Size=" + Size +
+            ", UncompressedSize=" + UncompressedSize +
+            ", CompressionMethod=" + ECompressionFlags.StaticToString(CompressionMethod) +
+            ", Hash=" + (Hash == null ? "null" : FString.BytesToHex(Hash)) +
+            ", CompressionBlocks=" + (CompressionBlocks == null ? "null" : Arrays.asList(CompressionBlocks).toString()) +
+            ", CompressionBlockSize=" + CompressionBlockSize +
+            ", bEncrypted=" + bEncrypted +
+            ", Verified=" + Verified +
+        "}";
     }
 }

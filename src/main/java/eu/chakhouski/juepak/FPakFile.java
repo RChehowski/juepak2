@@ -1,9 +1,11 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
+import eu.chakhouski.juepak.ue4.FMath;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
@@ -21,6 +23,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,12 +38,18 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
 {
     /** Pak filename. */
     private final String PakFilename;
+
+    public final FPakInfo GetInfo()
+    {
+        return Info;
+    }
+
     /** Pak file info (trailer). */
     public final FPakInfo Info = new FPakInfo();
     /** Mount point. */
     private String MountPoint;
     /** Info on all files stored in pak. */
-    private final ArrayList<FPakEntry> Files = new ArrayList<>();
+    private FPakEntry[] Files;
     /** Pak Index organized as a map of directories for faster Directory iteration. Valid only when bFilenamesRemoved == false. */
     Map<String, Map<String, FPakEntry>> Index = new HashMap<>();
     /** The number of file entries in the pak file */
@@ -83,7 +93,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     /**
      * Precaching
      */
-    private static void GetPakEncryptionKey(FAES.FAESKey OutKey)
+    public static void GetPakEncryptionKey(FAES.FAESKey OutKey)
     {
         FCoreDelegates.FPakEncryptionKeyDelegate Delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
         if (Delegate.IsBound())
@@ -209,7 +219,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
 
             MountPoint = MakeDirectoryFromPath(MountPoint);
             // Allocate enough memory to hold all entries (and not reallocate while they're being added to it).
-            Files.ensureCapacity(NumEntries);
+            Files = new FPakEntry[NumEntries];
 
             for (int EntryIndex = 0; EntryIndex < NumEntries; EntryIndex++)
             {
@@ -220,7 +230,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                 Entry.Deserialize(IndexData, Info.Version);
 
                 // Add new file info.
-                Files.add(Entry);
+                Files[EntryIndex] = Entry;
 
                 // Construct Index of all directories in pak file.
                 String Path = FPaths.GetPath(Filename);
@@ -278,5 +288,52 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         {
             return Path;
         }
+    }
+
+    /**
+     * Calculates a SHA1 checksum based on XORed checksum of each entry.
+     * This method is very fast and stable and it does not even tries to unpack any data.
+     *
+     * @return 20 bytes of brief SHA1 checksum of the file.
+     */
+    @APIBridgeMethod
+    public final byte[] BriefChecksumOfContent()
+    {
+        // Sort entries by offset to ensure stability
+        final FPakEntry[] EntriesOffsetAscending = Arrays.copyOf(Files, Files.length);
+        Arrays.sort(EntriesOffsetAscending, Comparator.comparingLong(Entry -> Entry.Offset));
+
+        // Perform direct allocation to speed-up bulk operations
+        // Otherwise, java will fall into byte-merging and will make our bulk operations senseless
+        final ByteBuffer ItemBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer MergeBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
+
+        for (int i = 0, length = EntriesOffsetAscending.length; i < length; i++)
+        {
+            final FPakEntry Entry = EntriesOffsetAscending[i];
+
+            ItemBuffer.position(0);
+            ItemBuffer.put(Entry.Hash);
+
+            // XOR data
+            ItemBuffer.position(0);
+            MergeBuffer.position(0);
+
+            // Perform 3 bulk operations to xor 8+8+4=20 bytes of SHA1
+            final long l0 = MergeBuffer.getLong() ^ ItemBuffer.getLong();
+            final long l1 = MergeBuffer.getLong() ^ ItemBuffer.getLong();
+            final int i0 = MergeBuffer.getInt() ^ ItemBuffer.getInt();
+
+            // Put back into MergeBuffer
+            MergeBuffer.position(0);
+            MergeBuffer.putLong(l0).putLong(l1).putInt(i0);
+        }
+
+        // Get result bytes from our DirectByteBuffer
+        MergeBuffer.position(0);
+        final byte[] Result = new byte[MergeBuffer.capacity()];
+        MergeBuffer.get(Result);
+
+        return Result;
     }
 }

@@ -1,11 +1,10 @@
 package eu.chakhouski.juepak.util;
 
-import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.annotations.FStruct;
+import eu.chakhouski.juepak.annotations.StaticSize;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 

@@ -8,15 +8,12 @@ import eu.chakhouski.juepak.annotations.Operator;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Function;
 
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc

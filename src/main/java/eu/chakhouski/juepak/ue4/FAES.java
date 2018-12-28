@@ -5,7 +5,6 @@ import eu.chakhouski.juepak.annotations.StaticSize;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -26,7 +25,7 @@ public class FAES
     private static final Cipher AES256Cipher;
 
     private static final int AES_KEYBITS = 256;
-    private static final int AESBlockSize = 16;
+    public static final int AESBlockSize = 16;
 
     private static final byte[] EncryptionDecryptionBuffer = new byte[AESBlockSize];
 
