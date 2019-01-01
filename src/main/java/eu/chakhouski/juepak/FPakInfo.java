@@ -3,10 +3,14 @@ package eu.chakhouski.juepak;
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
+import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
+import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
+import static eu.chakhouski.juepak.util.Misc.toByte;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @FStruct
@@ -29,14 +33,20 @@ public class FPakInfo
     /** Version numbers. */
     //enum
     //{
-        public static int PakFile_Version_Initial = 1;
-        public static int PakFile_Version_NoTimestamps = 2;
-        public static int PakFile_Version_CompressionEncryption = 3;
-        public static int PakFile_Version_IndexEncryption = 4;
-        public static int PakFile_Version_RelativeChunkOffsets = 5;
+    public static int
+        PakFile_Version_Initial = 1,
+        PakFile_Version_NoTimestamps = 2,
+        PakFile_Version_CompressionEncryption = 3,
+        PakFile_Version_IndexEncryption = 4,
+        PakFile_Version_RelativeChunkOffsets = 5,
+        PakFile_Version_DeleteRecords = 6,
+        PakFile_Version_EncryptionKeyGuid = 7,
 
-        public static int PakFile_Version_Last = 6;
-        public static int PakFile_Version_Latest = PakFile_Version_Last - 1;
+
+        PakFile_Version_Last = 8,
+        PakFile_Version_Invalid = 9,
+        PakFile_Version_Latest = PakFile_Version_Last - 1
+    ;
     // }
 
 
@@ -54,6 +64,8 @@ public class FPakInfo
     public byte[] IndexHash = new byte[20];
     /** Flag indicating if the pak index has been encrypted. */
     public byte bEncryptedIndex;
+    /** Encryption key guid. Empty if we should use the embedded key. */
+    public FGuid EncryptionKeyGuid = new FGuid();
 
     /**
      * Constructor.
@@ -76,7 +88,19 @@ public class FPakInfo
      */
     public long GetSerializedSize()
     {
-        return sizeof(Magic) + sizeof(Version) + sizeof(IndexOffset) + sizeof(IndexSize) + sizeof(IndexHash) + sizeof(bEncryptedIndex);
+        return GetSerializedSize(PakFile_Version_Latest);
+    }
+
+    /**
+     * Gets the size of data serialized by this struct.
+     *
+     * @return Serialized data size.
+     */
+    public long GetSerializedSize(int InVersion)
+    {
+        long Size = sizeof(Magic) + sizeof(Version) + sizeof(IndexOffset) + sizeof(IndexSize) + sizeof(IndexHash) + sizeof(bEncryptedIndex);
+        if (InVersion >= PakFile_Version_EncryptionKeyGuid) Size += sizeof(EncryptionKeyGuid);
+        return Size;
     }
 
     /**
@@ -86,21 +110,55 @@ public class FPakInfo
         return Version >= PakFile_Version_RelativeChunkOffsets ? 1 : 0;
     }
 
-    void Deserialize(ByteBuffer b)
+    void Deserialize(ByteBuffer b, int InVersion)
     {
+        if (b.capacity() < (b.position() + GetSerializedSize(InVersion)))
+        {
+            Magic = 0;
+            return;
+        }
+
+        if (InVersion >= PakFile_Version_EncryptionKeyGuid)
+        {
+            EncryptionKeyGuid.Deserialize(b);
+        }
+
         bEncryptedIndex = b.get();
 
-        Magic = b.getInt();
-        Version = b.getInt();
-        IndexOffset = b.getLong();
-        IndexSize = b.getLong();
+        Magic = UE4Deserializer.ReadInt(b);
+        Version = UE4Deserializer.ReadInt(b);
+        IndexOffset = UE4Deserializer.ReadLong(b);
+        IndexSize = UE4Deserializer.ReadLong(b);
 
         b.get(IndexHash);
+
+        if (Version < PakFile_Version_IndexEncryption)
+        {
+            bEncryptedIndex = toByte(false);
+        }
+
+        if (Version < PakFile_Version_EncryptionKeyGuid)
+        {
+            EncryptionKeyGuid.Invalidate();
+        }
     }
 
     @Operator("bool")
     public Boolean operatorBOOL()
     {
         return false;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "FPakInfo{" +
+           "Magic=" + Magic +
+           ", Version=" + Version +
+           ", IndexOffset=" + IndexOffset +
+           ", IndexSize=" + IndexSize +
+           ", IndexHash=" + Arrays.toString(IndexHash) +
+           ", bEncryptedIndex=" + bEncryptedIndex +
+           '}';
     }
 }

@@ -7,6 +7,7 @@ import java.util.Locale;
 
 import static eu.chakhouski.juepak.util.Misc.TCHAR;
 import static eu.chakhouski.juepak.util.Misc.TEXT;
+import static eu.chakhouski.juepak.util.Misc.check;
 
 public class FString
 {
@@ -102,5 +103,49 @@ public class FString
     public static String Left(String Str, int Index)
     {
         return Str.substring(0, Index);
+    }
+
+    /** @return the substring from Start position for Count characters. */
+    public static String Mid(String Str, int Start)
+    {
+        return Mid(Str, Start, Integer.MAX_VALUE);
+    }
+
+    public static String Mid(String Str, int Start, int Count)
+    {
+        check(Count >= 0);
+        int End = Start+Count;
+        Start    = FMath.Clamp( (int)Start, (int)0,     (int)Str.length() );
+        End      = FMath.Clamp( (int)End,   (int)Start, (int)Str.length() );
+        return Str.substring(Start, End);
+    }
+
+    public static int Strnicmp(String A, int OffsetA, String B, int OffsetB, int Length)
+    {
+        int NumCharsA = A.length() - OffsetA;
+        int NumCharsB = B.length() - OffsetB;
+
+        for (int Index = 0; Index < Length; Index++)
+        {
+            // Both strings were traversed (but puny user entered invalid length)
+            if ((NumCharsA <= 0) && (NumCharsB <= 0))
+            {
+                return 0;
+            }
+
+            // Get characters to compare, treat missing characters as
+            final int CharA = (NumCharsA-- > 0) ? Character.toUpperCase(A.charAt(OffsetA + Index)) : Integer.MIN_VALUE;
+            final int CharB = (NumCharsB-- > 0) ? Character.toUpperCase(B.charAt(OffsetB + Index)) : Integer.MIN_VALUE;
+
+            final int CharCompare = Integer.compare(CharA, CharB);
+
+            // If characters are not equal - return the difference
+            if (CharCompare != 0)
+            {
+                return FMath.Clamp(CharCompare, -1, 1);
+            }
+        }
+
+        return 0;
     }
 }

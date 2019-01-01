@@ -1,14 +1,14 @@
 package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.ue4.FString;
+import eu.chakhouski.juepak.util.PakCreator;
 
-import java.io.IOException;
-import java.util.Arrays;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.Base64;
 import java.util.function.Consumer;
-
-import static eu.chakhouski.juepak.util.Misc.BOOL;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
 
 public class Main
 {
@@ -26,38 +26,59 @@ public class Main
         });
 
 
+        try {
+            // Encode a String into bytes
+            String inputString = "";
+            byte[] input = inputString.getBytes("UTF-8");
 
-        final String file = "C:\\Users\\ASUS\\Desktop\\WindowsNoEditor\\FPS\\Content\\Paks\\FPS-WindowsNoEditor.pak";
+            // Compress the bytes
+            byte[] output = new byte[100];
+            Deflater compresser = new Deflater();
+            compresser.setInput(input);
+            compresser.finish();
+            int compressedDataLength = compresser.deflate(output);
+            compresser.end();
 
-        try (final FPakFile fPakFile = new FPakFile(file))
-        {
-            final byte[] sha1bytes = fPakFile.BriefChecksumOfContent();
+            // Decompress the bytes
+            Inflater decompresser = new Inflater();
+            decompresser.setInput(output, 0, compressedDataLength);
+            byte[] result = new byte[100];
+            int resultLength = decompresser.inflate(result);
+            decompresser.end();
 
-            for (FFileIterator It = fPakFile.iterator(); It.hasNext();)
-            {
-                final FPakEntry Entry = It.next();
-                final String Filename = It.Filename();
+            // Decode the bytes into a String
+            String outputString = new String(result, 0, resultLength, "UTF-8");
+            System.out.println(outputString);
+        } catch(java.io.UnsupportedEncodingException ex) {
+            // handle
+        } catch (java.util.zip.DataFormatException ex) {
 
-                System.out.println(String.join(System.lineSeparator(), Arrays.asList(
-                        "Extracting \"" + Filename + "\"",
-                        " > compression: " + ECompressionFlags.StaticToString(Entry.CompressionMethod),
-                        " > offset:      " + Entry.Offset + " bytes",
-                        " > encrypted:   " + (BOOL(Entry.bEncrypted) ? "yes" : "no"),
-                        " > size:        " + Entry.Size + " bytes",
-                        " > raw size:    " + Entry.UncompressedSize + " bytes",
-                        " > sha1:        " + FString.BytesToHex(Entry.Hash)
-                )));
-
-//                final byte[] bytes = new byte[(int)Entry.UncompressedSize];
-//                It.extractToMemory(bytes);
-
-                It.extractMixed("C:\\Users\\ASUS\\Desktop\\Extract");
-
-            }
         }
-        catch (IOException e)
+
+
+        final PakCreator pakCreator = new PakCreator(FPakInfo.PakFile_Version_Latest);
+
+
+        try (final FileOutputStream fos = new FileOutputStream("C:\\Users\\ASUS\\Desktop\\Sample.pak"))
         {
-            e.printStackTrace();
+            final FPakEntry fPakEntry = pakCreator.deflateFile(
+                    new FileInputStream("C:\\Users\\ASUS\\Desktop\\Content.txt"), fos.getChannel(), true,
+                    64 * 1024);
+        }
+
+
+        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pa";
+
+        // Broken
+        try (final FPakFile fPakFile = new FPakFile(brokenFile))
+        {
+            for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
+            {
+                FPakEntry e = iterator.next();
+
+                System.out.println(iterator.toString());
+                iterator.extractToMemory(new byte[(int)e.UncompressedSize]);
+            }
         }
     }
 }

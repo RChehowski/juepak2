@@ -59,6 +59,11 @@ public class Sizeof
         return sizeCache.computeIfAbsent(clazz, Sizeof::getStructSize);
     }
 
+    public static int sizeof(Object object)
+    {
+        return sizeof(object.getClass());
+    }
+
     private static int getStructSize(Class<?> clazz)
     {
         if (sizeCache.containsKey(clazz))

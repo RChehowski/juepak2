@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
+import static eu.chakhouski.juepak.util.Misc.BOOL;
 import static java.lang.String.join;
 import static java.lang.System.lineSeparator;
 import static java.util.Arrays.asList;
@@ -123,8 +124,11 @@ public class UE4Deserializer
 
         final boolean[] array = new boolean[NumElements];
 
-        // Transfer to the array, casting each element to boolean
-        for (int i = 0; i < NumElements; array[i++] = b.get() != 0);
+        // Transfer to the array, casting each element to boolean. TODO: Check if sizeof(bool) is always 1 in UE4.
+        for (int i = 0; i < NumElements; i++)
+        {
+            array[i] = BOOL(b.get());
+        }
 
         return array;
     }
@@ -209,15 +213,33 @@ public class UE4Deserializer
         return array;
     }
 
+    public static <T extends UEDeserializable> T Read(Class<T> clazz, ByteBuffer b)
+    {
+        try
+        {
+            final T instance = clazz.newInstance();
+            instance.Deserialize(b);
+
+            return instance;
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new IllegalArgumentException("Unable to instantiate " + clazz.getName() +
+                                               "\nReason: " + e.getMessage());
+        }
+    }
+
     /**
      * Reads a generic array from a buffer.
+     * NOTE: To deserialize an array of structures you should better use a generic {@link #ReadStructArray(ByteBuffer, Class)}
+     *       Because it provides a generic structure type.
+     *
      * @param b Buffer, from which the data will be read.
      * @param elementType Class of the element of the array.
-     * @param <T> Type of the element.
      *
-     * @return A newly created array of deserialized items. It is an object because it can be a primitive array.
+     * @return A newly created array of deserialize items. It is an object because it can be a primitive array.
      */
-    public static <T> Object ReadArray(ByteBuffer b, Class<T> elementType)
+    public static Object ReadArray(ByteBuffer b, Class<?> elementType)
     {
         b.order(ByteOrder.LITTLE_ENDIAN);
 

@@ -34,6 +34,30 @@ public class FPakCompressedBlock implements UESerializable, UEDeserializable
 
 
     // #region: decorator methods
+    @JavaDecoratorMethod
+    public void relativize(long Offset)
+    {
+        // calculate start
+        final long RelativeStart = CompressedStart - Offset;
+        if (RelativeStart < 0)
+        {
+            throw new IllegalArgumentException("Cannot relativize CompressedStart " + CompressedStart + " with " +
+                Offset + ", because result " + RelativeStart + " is negative");
+        }
+
+        CompressedStart = RelativeStart;
+
+
+        // calculate end
+        final long RelativeEnd = CompressedEnd - Offset;
+        if (RelativeEnd < 0)
+        {
+            throw new IllegalArgumentException("Cannot relativize CompressedEnd " + CompressedEnd + " with " +
+                Offset + ", because result " + RelativeEnd + " is negative");
+        }
+
+        CompressedEnd -= Offset;
+    }
 
     @Override
     @JavaDecoratorMethod
@@ -49,6 +73,7 @@ public class FPakCompressedBlock implements UESerializable, UEDeserializable
     }
 
     @Override
+    @JavaDecoratorMethod
     public void Serialize(ByteBuffer b)
     {
         // Set order

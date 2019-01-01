@@ -2,10 +2,8 @@ package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
-import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.ue4.FMath;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
@@ -21,9 +19,7 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -134,7 +130,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             Info.GetSerializedSize()
         );
 
-        Info.Deserialize(map.order(ByteOrder.LITTLE_ENDIAN));
+        Info.Deserialize(map.order(ByteOrder.LITTLE_ENDIAN), FPakInfo.PakFile_Version_Latest);
 
 
         if (CachedTotalSize < Info.GetSerializedSize())

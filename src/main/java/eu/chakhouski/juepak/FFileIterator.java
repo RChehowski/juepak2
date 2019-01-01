@@ -170,124 +170,45 @@ public final class FFileIterator implements Iterator<FPakEntry>
     }
 
     @APIBridgeMethod
-    public void extractToMemory(final byte[] buffer, final int offset) throws IOException
+    public void extractToMemory(final byte[] Buffer, final int Offset) throws IOException
     {
-        PakExtractor.Extract(PakFile, PakEntry(), Channels.newChannel(new OutputStream() {
+        // Check whether our buffer can potentially fit our data
+        final FPakEntry PakEntry = PakEntry();
+
+        // Perform fast check whether the drain can fit that much data
+        final int bufferCapacity = Buffer.length - Offset;
+        if (bufferCapacity < PakEntry.UncompressedSize)
+        {
+            throw new ArrayIndexOutOfBoundsException(
+                "Your buffer of " + Buffer.length + " bytes starting from position " + Offset +
+                " (total capacity of " + bufferCapacity + " bytes) can not fit current" +
+                " pak entry (file) of " + PakEntry.UncompressedSize + " bytes"
+            );
+        }
+
+        // Do extract
+        PakExtractor.Extract(PakFile, PakEntry, Channels.newChannel(new OutputStream() {
             int position = 0;
 
             @Override
-            public void write(int b) { throw new IllegalStateException("Should not get here"); }
+            public void write(int b)
+            {
+                Buffer[Offset + (position++)] = (byte)b;
+            }
 
             @Override
-            public void write(byte[] InBuffer, int InOffset, int InLength)
+            public void write(byte[] InBuffer, int InBufferOffset, int InBufferLength)
             {
-                System.arraycopy(InBuffer, InOffset, buffer, offset + position, InLength);
-                position += InLength;
+                // the default write(int) fallback is too slow, we can instead copy bunches of bytes at once
+                System.arraycopy(InBuffer, InBufferOffset, Buffer, Offset + position, InBufferLength);
+                position += InBufferLength;
             }
         }));
     }
 
-//    private static class ShifterInputStream implements InputStream
-//    {
-//        private long BytesToRead = Entry.UncompressedSize;
-//
-//        @Override
-//        public int read() throws IOException
-//        {
-//            return BytesToRead-- <= 0 ? -1 : PakFileStream.read();
-//        }
-//
-//        @Override
-//        public int read(byte[] b, int off, int len) throws IOException
-//        {
-//            final int BytesToCopy = Math.min(len, (int)BytesToRead);
-//            if (BytesToCopy > 0)
-//            {
-//                if (BytesToCopy < (long) PakFileStream.read(b, off, len))
-//                {
-//                    throw new IOException("Can not read that much bytes from a particular file");
-//                }
-//
-//                BytesToRead -= BytesToCopy;
-//            }
-//
-//            return BytesToCopy;
-//        }
-//    }
-
-//    public InputStream getInputStream() throws IOException
-//    {
-//        final FPakEntry Entry = PakEntry();
-//        final FPakInfo Info = PakFile.Info;
-//
-//        final FileInputStream PakFileStream = PakFile.InputStream;
-//        final FileChannel PakFileChannel = PakFileStream.getChannel();
-//
-//        final long SerializedSize = Entry.GetSerializedSize(Info.Version);
-//
-//        // Deserialize check entry once again
-//        final FPakEntry CheckEntry = new FPakEntry();
-//        CheckEntry.Deserialize(PakFileChannel.map(MapMode.READ_ONLY, Entry.Offset, SerializedSize), Info.Version);
-//
-//        // Check entry
-//        if (!Entry.equals(CheckEntry))
-//        {
-//            throw new IllegalStateException("Invalid check entry");
-//        }
-//
-//        // Set position
-//        PakFileChannel.position(Entry.Offset + SerializedSize);
-//
-//        // Properties
-//        final int EntryCompressionMethod = Entry.CompressionMethod;
-//        final boolean bEntryIsEncrypted = BOOL(Entry.bEncrypted);
-//        final boolean bEntryIsCompressed = EntryCompressionMethod != ECompressionFlags.COMPRESS_None;
-//
-//        // Create shifter stream
-//        final InputStream shifterInputStream = new InputStream() {
-//            long BytesToRead = Entry.UncompressedSize;
-//
-//            @Override
-//            public int read() throws IOException
-//            {
-//                return BytesToRead-- <= 0 ? -1 : PakFileStream.read();
-//            }
-//
-//            @Override
-//            public int read(byte[] b, int off, int len) throws IOException
-//            {
-//                final int BytesToCopy = Math.min(len, (int)BytesToRead);
-//                if (BytesToCopy > 0)
-//                {
-//                    if (BytesToCopy > PakFileStream.read(b, off, len))
-//                        throw new IOException("Can not read that much bytes from a particular file");
-//
-//                    BytesToRead -= BytesToCopy;
-//                }
-//
-//                return BytesToCopy;
-//            }
-//        };
-//
-//        final Cipher cipher;
-//        try {
-//            cipher = Cipher.getInstance("AES/ECB/NoPadding");
-//
-//
-//
-//            final byte[] SharedKeyBytes = new byte[32];
-//            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(SharedKeyBytes);
-//
-//            final SecretKeySpec secretKeySpec = new SecretKeySpec(SharedKeyBytes, 0, SharedKeyBytes.length, "AES");
-//            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
-//        }
-//        catch (GeneralSecurityException e) {
-//            throw new SecurityException();
-//        }
-//
-//
-//
-//        final CipherInputStream cipherInputStream = new CipherInputStream(shifterInputStream, cipher);
-//        return cipherInputStream;
-//    }
+    @Override
+    public String toString()
+    {
+        return "Filename: " + Filename() + ", Entry: " + PakEntry();
+    }
 }

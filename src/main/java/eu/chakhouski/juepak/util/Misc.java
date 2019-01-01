@@ -18,6 +18,9 @@ import java.util.TreeMap;
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc
 {
+    // Show some extra info if calling operator bool() was unsuccessful
+    private static boolean DEBUG_OPERATOR_BOOL = true;
+
     private static Boolean zeroBoolean = Boolean.FALSE;
     private static Byte zeroByte = (byte) 0;
     private static Short zeroShort = (short) 0;
@@ -31,23 +34,14 @@ public class Misc
     private static Map<Class<?>, MethodHandle> operatorBoolCache = new HashMap<>();
 
     public static Object NULL = null;
-
-    public static Map<String, FPakEntry> GetSortedEntries(FPakFile PakFile, Comparator<FPakEntry> Comparator)
-    {
-        final TreeMap<FPakEntry, String> Map = new TreeMap<>(Comparator);
-
-        // Sort map
-        for (FFileIterator Iterator = PakFile.iterator(); Iterator.hasNext(); )
-            Map.put(Iterator.next(), Iterator.Filename());
-
-        final Map<String, FPakEntry> ResultMap = new LinkedHashMap<>();
-        Map.forEach((k, v) -> ResultMap.put(v, k));
-
-        return ResultMap;
-    }
+    public static long MAX_ulong = Long.MAX_VALUE;
 
     /**
-     * Implicit cast to boolean (C++ style)
+     * Implicit cast to boolean (C/C++ style)
+     *  - Primitive type T is false if and only if it is (T)0.
+     *  - Pointer types are false if and only if they are 'null'
+     *  - {@link FStruct} is true/false if they have an overloaded {}
+     *
      * @param o object to be implicitly casted to boolean.
      * @return Boolean result (true or false)
      */
@@ -84,83 +78,101 @@ public class Misc
             return !zeroDouble.equals(o);
 
         else if (oClass.isAnnotationPresent(FStruct.class))
+            return fstructToBoolean(o);
+        else
         {
-            MethodHandle operatorBool = null;
-            if (!operatorBoolCache.containsKey(oClass))
-            {
-                final Method[] declaredMethods = oClass.getDeclaredMethods();
-                Method operatorBoolMethod = null;
+            // No support for complex types
+            throw new IllegalArgumentException("Implicit boolean casts are supported only for primitive and FStruct types\n" +
+                                               "Given: " + oClass.getName());
+        }
+    }
 
-                for (int i = 0, l = declaredMethods.length; (i < l) && (operatorBoolMethod == null); i++)
+    private static boolean fstructToBoolean(Object o)
+    {
+        final Class<?> clazz = o.getClass();
+
+        MethodHandle operatorBool = null;
+        if (!operatorBoolCache.containsKey(clazz))
+        {
+            // It will be added to the map as 'null' (no such operator) even if some exception(s) occurred
+            Method operatorBoolMethod = null;
+
+            final Method[] methods = clazz.getMethods();
+            for (int i = 0, l = methods.length; (i < l) && (operatorBoolMethod == null); i++)
+            {
+                Method method = methods[i];
+                final Operator operator = method.getAnnotation(Operator.class);
+
+                if ((operator != null) && Operator.BOOL.equals(operator.value()))
+                    operatorBoolMethod = method;
+            }
+
+            if (operatorBoolMethod != null)
+            {
+                // Check if the convention is valid
+                if (boolean.class.equals(operatorBoolMethod.getReturnType()) ||
+                    Boolean.class.equals(operatorBoolMethod.getReturnType()))
                 {
-                    Method declaredMethod = declaredMethods[i];
-                    final Operator operator = declaredMethod.getAnnotation(Operator.class);
-
-                    if ((operator != null) && Operator.BOOL.equals(operator.value()))
-                        operatorBoolMethod = declaredMethod;
+                    if (operatorBoolMethod.getParameterCount() == 0)
+                    {
+                        // Unreflect operator
+                        try {
+                            operatorBool = MethodHandles.lookup().unreflect(operatorBoolMethod);
+                        }
+                        catch (IllegalAccessException e) {
+                            if (DEBUG_OPERATOR_BOOL)
+                            {
+                                System.err.println("Unable to unreflect " + clazz.getName() + "." + operatorBoolMethod.getName() +
+                                                   "\nReason: " + e.toString());
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (DEBUG_OPERATOR_BOOL)
+                        {
+                            System.err.println(clazz.getName() + "." + operatorBoolMethod.getName() +
+                                               " must have no params to be used as Operator(\"bool\")");
+                        }
+                    }
                 }
-
-                if (operatorBoolMethod != null)
+                else
                 {
-                    final boolean methodWasAccessible = operatorBoolMethod.isAccessible();
-                    if (methodWasAccessible)
-                        operatorBoolMethod.setAccessible(true);
-
-
-                    // Check if the convention is valid
-                    if (!boolean.class.equals(operatorBoolMethod.getReturnType()) &&
-                        !Boolean.class.equals(operatorBoolMethod.getReturnType()))
+                    if (DEBUG_OPERATOR_BOOL)
                     {
-                        throw new RuntimeException(oClass.getName() + "." + operatorBoolMethod.getName() +
-                                " must return 'boolean' or 'Boolean' to be used as Operator(\"bool\")");
+                        System.err.println(clazz.getName() + "." + operatorBoolMethod.getName() +
+                                           " must return 'boolean' or 'Boolean' to be used as Operator(\"bool\")");
                     }
-
-                    if (operatorBoolMethod.getParameterCount() != 0)
-                    {
-                        throw new RuntimeException(oClass.getName() + "." + operatorBoolMethod.getName() +
-                                " must have no params to be used as Operator(\"bool\")");
-                    }
-
-                    // Call the operator
-                    try {
-                        operatorBool = MethodHandles.lookup().unreflect(operatorBoolMethod);
-                    }
-                    catch (IllegalAccessException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    if (!methodWasAccessible)
-                        operatorBoolMethod.setAccessible(false);
-                }
-
-                operatorBoolCache.put(oClass, operatorBool);
-            }
-            else
-            {
-                operatorBool = operatorBoolCache.get(oClass);
-            }
-
-
-            if (operatorBool != null)
-            {
-                try {
-                    return (boolean)operatorBool.invoke(o);
-                }
-                catch (Throwable throwable) {
-                    throw new RuntimeException(throwable);
                 }
             }
-            else
-            {
-                // Otherwise we assume the object is 'exists' and have not overloaded 'bool operator()' and thus return true
-                return true;
-            }
+
+            operatorBoolCache.put(clazz, operatorBool);
         }
         else
         {
-            // No support for complex types yet
-            throw new RuntimeException("Implicit boolean casts are supported only for primitive and FStruct types");
+            operatorBool = operatorBoolCache.get(clazz);
         }
+
+
+        // assume the object is 'exists' and make it 'true' by default
+        boolean operatorBoolInvokeResult = true;
+
+        // Call operator if it was found
+        if (operatorBool != null)
+        {
+            try {
+                operatorBoolInvokeResult = (boolean)operatorBool.invoke(o);
+            }
+            catch (Throwable t) {
+                if (DEBUG_OPERATOR_BOOL)
+                {
+                    System.err.println("Calling '" + clazz.getName() + ".operator bool()' failed\n" +
+                                       "Reason: " + t.toString());
+                }
+            }
+        }
+
+        return operatorBoolInvokeResult;
     }
 
     /**
@@ -194,5 +206,36 @@ public class Misc
         {
            throw new RuntimeException(String.format(format, (Object[]) args));
         }
+    }
+
+    public static void check(Object expr)
+    {
+        if (!BOOL(expr))
+        {
+            throw new RuntimeException();
+        }
+    }
+
+    public static int rand()
+    {
+        return (int)(Math.random() * (double)0x7fff);
+    }
+
+
+
+    // Casts
+    public static int toInt(final long longValue)
+    {
+        if (longValue > (long)Integer.MAX_VALUE || longValue < (long)Integer.MIN_VALUE)
+        {
+            throw new RuntimeException("Unable to cast " + longValue + " to int, it's out of integer bounds");
+        }
+
+        return (int)longValue;
+    }
+
+    public static byte toByte(final boolean booleanValue)
+    {
+        return booleanValue ? (byte)1 : (byte)0;
     }
 }

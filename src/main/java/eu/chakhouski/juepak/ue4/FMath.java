@@ -22,4 +22,9 @@ public class FMath
     {
         return Math.max(a, b);
     }
+
+    static int Clamp( final int X, final int Min, final int Max )
+    {
+        return X<Min ? Min : X<Max ? X : Max;
+    }
 }

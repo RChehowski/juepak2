@@ -7,8 +7,10 @@ import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
+import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.util.Arrays;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
@@ -19,6 +21,12 @@ public class FPakEntry
 {
     @JavaDecoratorField
     private static final FPakCompressedBlock[] SharedDummyCompressionBlocks = new FPakCompressedBlock[0];
+
+
+    private static final byte Flag_None = 0x00;
+    private static final byte Flag_Encrypted = 0x01;
+    private static final byte Flag_Deleted = 0x02;
+
 
     /** Offset into pak file where the file is stored.*/
     public long Offset;
@@ -34,8 +42,8 @@ public class FPakEntry
     public FPakCompressedBlock[] CompressionBlocks;
     /** Size of a compressed block in the file. */
     public int CompressionBlockSize;
-    /** True is file is encrypted. */
-    public byte bEncrypted;
+    /** Pak entry flags. */
+    public byte Flags;
     /** Flag is set to true when FileHeader has been checked against PakHeader. It is not serialized. */
     public boolean Verified;
 
@@ -57,7 +65,7 @@ public class FPakEntry
         long SerializedSize = sizeof(Offset) + sizeof(Size) + sizeof(UncompressedSize) + sizeof(CompressionMethod) + sizeof(Hash);
         if (Version >= FPakInfo.PakFile_Version_CompressionEncryption)
         {
-            SerializedSize += sizeof(bEncrypted) + sizeof(CompressionBlockSize);
+            SerializedSize += sizeof(Flags) + sizeof(CompressionBlockSize);
             if (CompressionMethod != COMPRESS_None)
             {
                 SerializedSize +=
@@ -81,13 +89,10 @@ public class FPakEntry
         UncompressedSize = UE4Deserializer.ReadLong(Ar);
         CompressionMethod = UE4Deserializer.ReadInt(Ar);
 
-
         if (Version <= FPakInfo.PakFile_Version_Initial)
         {
-            throw new IllegalStateException("Too old pak revision");
-
-//            FDateTime Timestamp;
-//            Ar << Timestamp;
+            final long Timestamp;
+            Timestamp = UE4Deserializer.ReadLong(Ar);
         }
 
         Ar.get(Hash);
@@ -99,10 +104,59 @@ public class FPakEntry
                 CompressionBlocks = UE4Deserializer.ReadStructArray(Ar, FPakCompressedBlock.class);
             }
 
-            bEncrypted = Ar.get();
+            Flags = Ar.get();
             CompressionBlockSize = UE4Deserializer.ReadInt(Ar);
         }
     }
+
+    public void Serialize(ByteBuffer Ar, int Version)
+    {
+        Ar.putLong(Offset);
+        Ar.putLong(Size);
+        Ar.putLong(UncompressedSize);
+        Ar.putInt(CompressionMethod);
+
+        Ar.put(Hash);
+
+        if (Version <= FPakInfo.PakFile_Version_Initial)
+        {
+            Ar.putLong(0);
+        }
+
+        if (Version >= FPakInfo.PakFile_Version_CompressionEncryption)
+        {
+            if (CompressionMethod != COMPRESS_None)
+            {
+                UE4Serializer.WriteStructArray(Ar, CompressionBlocks);
+            }
+
+            Ar.put(Flags);
+            Ar.putInt(CompressionBlockSize);
+        }
+    }
+
+    void SetFlag( byte InFlag, boolean bValue )
+    {
+        if( bValue )
+        {
+            Flags |= InFlag;
+        }
+        else
+        {
+            Flags &= ~InFlag;
+        }
+    }
+
+    boolean GetFlag( byte InFlag )
+    {
+        return (Flags & InFlag) == InFlag;
+    }
+
+    public boolean IsEncrypted()                 { return GetFlag(Flag_Encrypted); }
+    public void SetEncrypted(boolean bEncrypted) { SetFlag( Flag_Encrypted, bEncrypted ); }
+
+    public boolean IsDeleteRecord()                      { return GetFlag(Flag_Deleted); }
+    public void SetDeleteRecord( boolean bDeleteRecord ) { SetFlag(Flag_Deleted, bDeleteRecord ); }
 
     @JavaDecoratorMethod
     public final FPakEntry Clean()
@@ -113,7 +167,7 @@ public class FPakEntry
         CompressionMethod = 0;
         CompressionBlocks = SharedDummyCompressionBlocks;
         CompressionBlockSize = 0;
-        bEncrypted = 0;
+        Flags = Flag_None;
         Verified = false;
 
         FMemory.Memset(Hash, 0, sizeof(Hash));
@@ -124,7 +178,7 @@ public class FPakEntry
      * Compares two FPakEntry structs.
      */
     @Operator("==")
-    @SuppressWarnings({"WeakerAccess"})
+    @SuppressWarnings("WeakerAccess")
     public boolean operatorEQ (FPakEntry B)
     {
         // Offsets are not compared here because they're not
@@ -132,7 +186,7 @@ public class FPakEntry
         return Size == B.Size &&
             UncompressedSize == B.UncompressedSize &&
             CompressionMethod == B.CompressionMethod &&
-            bEncrypted == B.bEncrypted &&
+            Flags == B.Flags &&
             CompressionBlockSize == B.CompressionBlockSize &&
             FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) == 0 &&
             Arrays.deepEquals(CompressionBlocks, B.CompressionBlocks);
@@ -142,7 +196,7 @@ public class FPakEntry
      * Compares two FPakEntry structs.
      */
     @Operator("!=")
-    @SuppressWarnings({"unused"})
+    @SuppressWarnings("unused")
     public boolean operatorNEQ (FPakEntry B)
     {
         // Offsets are not compared here because they're not
@@ -150,7 +204,7 @@ public class FPakEntry
         return Size != B.Size ||
             UncompressedSize != B.UncompressedSize ||
             CompressionMethod != B.CompressionMethod ||
-            bEncrypted != B.bEncrypted ||
+            Flags != B.Flags ||
             CompressionBlockSize != B.CompressionBlockSize ||
             FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) != 0 ||
             !Arrays.deepEquals(CompressionBlocks, B.CompressionBlocks);
@@ -182,8 +236,8 @@ public class FPakEntry
             ", Hash=" + (Hash == null ? "null" : FString.BytesToHex(Hash)) +
             ", CompressionBlocks=" + (CompressionBlocks == null ? "null" : Arrays.asList(CompressionBlocks).toString()) +
             ", CompressionBlockSize=" + CompressionBlockSize +
-            ", bEncrypted=" + bEncrypted +
-            ", Verified=" + Verified +
+            ", IsEncrypted=" + IsEncrypted() +
+            ", IsDeleteRecord=" + IsDeleteRecord() +
         "}";
     }
 }

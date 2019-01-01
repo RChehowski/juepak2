@@ -47,10 +47,10 @@ public class PackFactory
         {
 			final long SizeToCopy = (int)FMath.Min(BufferSize, RemainingSizeToCopy);
             // If file is encrypted so we need to account for padding
-            long SizeToRead = BOOL(Entry.bEncrypted) ? Align(SizeToCopy, FAES.AESBlockSize) : SizeToCopy;
+            long SizeToRead = Entry.IsEncrypted() ? Align(SizeToCopy, FAES.AESBlockSize) : SizeToCopy;
 
             assert Source.read(Buffer, 0, (int)SizeToRead) == SizeToRead;
-            if (BOOL(Entry.bEncrypted))
+            if (Entry.IsEncrypted())
             {
                 FAES.FAESKey Key = new FAES.FAESKey();
                 FPakFile.GetPakEncryptionKey(Key);
@@ -87,10 +87,10 @@ public class PackFactory
 //            long CompressedBlockSize = Entry.CompressionBlocks[BlockIndex].CompressedEnd - Entry.CompressionBlocks[BlockIndex].CompressedStart;
 //            long UncompressedBlockSize = FMath.Min(Entry.UncompressedSize - Entry.CompressionBlockSize*BlockIndex, Entry.CompressionBlockSize);
 //            Source.Seek(Entry.CompressionBlocks[BlockIndex].CompressedStart + (PakFile.GetInfo().HasRelativeCompressedChunkOffsets() ? Entry.Offset : 0));
-//            long SizeToRead = BOOL(Entry.bEncrypted) ? Align(CompressedBlockSize, FAES.AESBlockSize) : CompressedBlockSize;
+//            long SizeToRead = BOOL(Entry.Flags) ? Align(CompressedBlockSize, FAES.AESBlockSize) : CompressedBlockSize;
 //            Source.Serialize(PersistentBuffer.GetData(), SizeToRead);
 //
-//            if (BOOL(Entry.bEncrypted))
+//            if (BOOL(Entry.Flags))
 //            {
 //                FAES.FAESKey Key = new FAES.FAESKey();
 //                FPakFile.GetPakEncryptionKey(Key);

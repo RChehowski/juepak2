@@ -17,7 +17,7 @@ public class FPaths
         String Result = "";
         if (Pos != INDEX_NONE)
         {
-            Result = InPath.substring(0, Pos);
+            Result = FString.Left(InPath, Pos);
         }
 
         return Result;
@@ -31,7 +31,7 @@ public class FPaths
         int EndPos   = FindLastCharByPredicate(InPath, IsNotSlashOrBackslash) + 1;
         int StartPos = FindLastCharByPredicate(InPath, IsSlashOrBackslash, EndPos) + 1;
 
-        String Result = InPath.substring(StartPos, EndPos);
+        String Result = FString.Mid(InPath, StartPos, EndPos - StartPos);
         return Result;
     }
 
@@ -53,5 +53,17 @@ public class FPaths
         }
 
         return -1;
+    }
+
+    public static String GetExtension(String InPath)
+    {
+        final int LastIndexOfSeparator = InPath.lastIndexOf((int) '.');
+
+        if (LastIndexOfSeparator >= 0)
+        {
+            return InPath.substring(LastIndexOfSeparator);
+        }
+
+        return "";
     }
 }
