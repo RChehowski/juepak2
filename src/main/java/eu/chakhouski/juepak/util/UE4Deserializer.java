@@ -22,10 +22,16 @@ public class UE4Deserializer
 
         int SaveNum = ReadInt(b);
 
+        // This is taken from unreal
         boolean LoadUCS2Char = SaveNum < 0;
         if (LoadUCS2Char)
         {
             SaveNum = -SaveNum;
+        }
+
+        // And this is my adaptation, we need to increase a number of bytes 2 times
+        if (LoadUCS2Char)
+        {
             SaveNum *= 2;
         }
 
@@ -43,6 +49,7 @@ public class UE4Deserializer
             Result = new String(strBytes, 0, SaveNum, StandardCharsets.US_ASCII);
         }
 
+        // TODO: Maybe cut zero bytes manually?
         return Result.replaceAll("\0", "");
     }
 

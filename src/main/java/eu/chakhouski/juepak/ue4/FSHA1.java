@@ -6,12 +6,12 @@ import java.security.NoSuchAlgorithmException;
 
 public class FSHA1
 {
-    private static final MessageDigest Sha;
+    private static final MessageDigest Sha1;
 
     static
     {
         try {
-            Sha = MessageDigest.getInstance("SHA-1");
+            Sha1 = MessageDigest.getInstance("SHA-1");
         }
         catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
@@ -29,11 +29,11 @@ public class FSHA1
     public static void HashBuffer(byte[] Data, int DataSize, byte[] OutHash)
     {
         // do an atomic hash operation
-        Sha.reset();
-        Sha.update(Data, 0, DataSize);
+        Sha1.reset();
+        Sha1.update(Data, 0, DataSize);
 
         try {
-            Sha.digest(OutHash, 0, Sha.getDigestLength());
+            Sha1.digest(OutHash, 0, Sha1.getDigestLength());
         }
         catch (DigestException e) {
             throw new RuntimeException(e);

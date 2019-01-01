@@ -7,12 +7,15 @@ import eu.chakhouski.juepak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
+import eu.chakhouski.juepak.ue4.FSHA1;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.Deflater;
@@ -40,12 +43,28 @@ public class PakCreator
     private ByteBuffer deflateSrcBuffer;
     private ByteBuffer deflateDstBuffer;
 
+    private static final MessageDigest Sha1;
+
+    static
+    {
+        try {
+            Sha1 = MessageDigest.getInstance("SHA-1");
+        }
+        catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+
 
 
     public PakCreator(int pakVersion)
     {
         this.pakVersion = pakVersion;
     }
+
+
 
     public FPakEntry deflateFile(InputStream is, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
             throws IOException
@@ -69,6 +88,8 @@ public class PakCreator
         long uncompressedSize = 0;
         long size = 0;
         int compressionBlockSize = 0;
+
+        Sha1.reset();
 
         int bytesRead;
         while ((bytesRead = is.read(deflateSrcBuffer.array(), 0, deflateSrcBuffer.capacity())) > 0)
@@ -124,6 +145,9 @@ public class PakCreator
 
             // Update compression block size
             compressionBlockSize = Math.max(compressionBlockSize, bytesWritten);
+
+            // Update sha
+            Sha1.update(deflateSrcBuffer.array(), 0, bytesRead);
         }
 
         // Nullify key bytes if node was encrypted
@@ -135,6 +159,7 @@ public class PakCreator
         entry.Offset = dataOffset;
         entry.UncompressedSize = uncompressedSize;
         entry.Size = size;
+        entry.Hash = Sha1.digest();
         entry.CompressionMethod = ECompressionFlags.COMPRESS_ZLIB;
         entry.CompressionBlocks = compressionBlocks.toArray(new FPakCompressedBlock[0]);
         entry.CompressionBlockSize = compressionBlockSize;

@@ -67,7 +67,7 @@ public class Main
         }
 
 
-        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pa";
+        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pak";
 
         // Broken
         try (final FPakFile fPakFile = new FPakFile(brokenFile))
