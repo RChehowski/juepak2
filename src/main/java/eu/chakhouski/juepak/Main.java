@@ -2,9 +2,14 @@ package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.util.PakCreator;
+import eu.chakhouski.juepak.util.UE4Serializer;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
+import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.function.Consumer;
 import java.util.zip.Deflater;
@@ -26,59 +31,50 @@ public class Main
         });
 
 
-        try {
-            // Encode a String into bytes
-            String inputString = "";
-            byte[] input = inputString.getBytes("UTF-8");
-
-            // Compress the bytes
-            byte[] output = new byte[100];
-            Deflater compresser = new Deflater();
-            compresser.setInput(input);
-            compresser.finish();
-            int compressedDataLength = compresser.deflate(output);
-            compresser.end();
-
-            // Decompress the bytes
-            Inflater decompresser = new Inflater();
-            decompresser.setInput(output, 0, compressedDataLength);
-            byte[] result = new byte[100];
-            int resultLength = decompresser.inflate(result);
-            decompresser.end();
-
-            // Decode the bytes into a String
-            String outputString = new String(result, 0, resultLength, "UTF-8");
-            System.out.println(outputString);
-        } catch(java.io.UnsupportedEncodingException ex) {
-            // handle
-        } catch (java.util.zip.DataFormatException ex) {
-
-        }
+        final ByteBuffer allocate = ByteBuffer.allocate(100);
+        UE4Serializer.WriteString(allocate, "abc");
 
 
-        final PakCreator pakCreator = new PakCreator(FPakInfo.PakFile_Version_Latest);
+        final PakCreator pakCreator = new PakCreator("/Users/netherwire/Desktop/Sample.pak", FPakInfo.PakFile_Version_Latest);
 
-
-        try (final FileOutputStream fos = new FileOutputStream("C:\\Users\\ASUS\\Desktop\\Sample.pak"))
+        final File file = new File("/Users/netherwire/Pictures");
+        file.listFiles(new FilenameFilter()
         {
-            final FPakEntry fPakEntry = pakCreator.deflateFile(
-                    new FileInputStream("C:\\Users\\ASUS\\Desktop\\Content.txt"), fos.getChannel(), true,
-                    64 * 1024);
-        }
-
-
-        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pak";
-
-        // Broken
-        try (final FPakFile fPakFile = new FPakFile(brokenFile))
-        {
-            for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
+            @Override
+            public boolean accept(File dir, String name)
             {
-                FPakEntry e = iterator.next();
+                final Path absPath = dir.toPath().resolve(name);
 
-                System.out.println(iterator.toString());
-                iterator.extractToMemory(new byte[(int)e.UncompressedSize]);
+                System.out.println(absPath.toString());
+                pakCreator.addFile(absPath);
+
+                return false;
             }
-        }
+        });
+
+        pakCreator.finalizeWrite();
+
+
+//        try (final FileOutputStream fos = new FileOutputStream("C:\\Users\\ASUS\\Desktop\\Sample.pak"))
+//        {
+//            final FPakEntry fPakEntry = pakCreator.deflateFile(
+//                    new FileInputStream("C:\\Users\\ASUS\\Desktop\\Content.txt"), fos.getChannel(), true,
+//                    64 * 1024);
+//        }
+//
+//
+//        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pak";
+//
+//        // Broken
+//        try (final FPakFile fPakFile = new FPakFile(brokenFile))
+//        {
+//            for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
+//            {
+//                FPakEntry e = iterator.next();
+//
+//                System.out.println(iterator.toString());
+//                iterator.extractToMemory(new byte[(int)e.UncompressedSize]);
+//            }
+//        }
     }
 }

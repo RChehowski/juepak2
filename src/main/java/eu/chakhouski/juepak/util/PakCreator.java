@@ -7,16 +7,21 @@ import eu.chakhouski.juepak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
-import eu.chakhouski.juepak.ue4.FSHA1;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.zip.Deflater;
 
@@ -28,6 +33,8 @@ import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 public class PakCreator
 {
     private final int pakVersion;
+    private final String savePath;
+    private final FileChannel pakChannel;
 
     /**
      * Deflater instance, may be lazily created via {@link #getDeflater()}
@@ -43,6 +50,10 @@ public class PakCreator
     private ByteBuffer deflateSrcBuffer;
     private ByteBuffer deflateDstBuffer;
 
+    private ByteBuffer pakEntryBuffer;
+
+    private List<FPakEntry> entries = new ArrayList<>();
+
     private static final MessageDigest Sha1;
 
     static
@@ -56,17 +67,33 @@ public class PakCreator
     }
 
 
-
-
-
-    public PakCreator(int pakVersion)
+    public PakCreator(String savePath, int pakVersion) throws FileNotFoundException
     {
+        this.savePath = savePath;
         this.pakVersion = pakVersion;
+
+        final FileOutputStream stream = new FileOutputStream(savePath);
+        pakChannel = stream.getChannel();
+    }
+
+    public final void addFile(Path path)
+    {
+        try (final FileInputStream fis = new FileInputStream(path.toFile()))
+        {
+            final FPakEntry e = deflateFile(fis, pakChannel, true, 65536);
+            entries.add(e);
+        }
+        catch (IOException e) {}
+    }
+
+    public void finalizeWrite() throws IOException
+    {
+        createIndex(true, entries, pakChannel);
     }
 
 
 
-    public FPakEntry deflateFile(InputStream is, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
+    private FPakEntry deflateFile(InputStream is, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
             throws IOException
     {
         // Store initial position to write here a FPakEntry instance a bit later
@@ -188,6 +215,64 @@ public class PakCreator
         return entry;
     }
 
+    private void createIndex(boolean encryptIndex, Iterable<FPakEntry> pakEntries, final FileChannel channel) throws IOException
+    {
+        final ByteBuffer srcBuffer = ByteBuffer.allocate(64 * 1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        for (Iterator<FPakEntry> iterator = pakEntries.iterator(); iterator.hasNext(); )
+        {
+            FPakEntry pakEntry = iterator.next();
+
+
+        }
+
+
+        // Source buffer is direct and it will lazily allocate it's data
+        // 1MB should be enough
+        // TODO: REWRITE, write sequentially
+
+
+        for (final FPakEntry entry : pakEntries)
+            entry.Serialize(srcBuffer, pakVersion);
+
+
+        // Add zero bytes if index should be encrypted
+        final int finalSize;
+        if (encryptIndex)
+        {
+            final int unalignedSize = srcBuffer.position();
+            finalSize = Align(unalignedSize, FAES.AESBlockSize);
+
+            for (int i = 0; i < (finalSize - unalignedSize); i++)
+                srcBuffer.put((byte)0);
+        }
+        else
+        {
+            finalSize = srcBuffer.position();
+        }
+
+        // Destination buffer is indirect and
+        final ByteBuffer dstBuffer = ByteBuffer.allocate(finalSize).order(ByteOrder.LITTLE_ENDIAN);
+
+        srcBuffer.flip();
+        dstBuffer.put(srcBuffer);
+
+        if (encryptIndex)
+        {
+            // Acquire key if entry is encrypted to save resources
+            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(SharedKeyBytes);
+
+            // Encrypt data
+            FAES.EncryptData(dstBuffer.array(), dstBuffer.limit(), SharedKeyBytes);
+
+            // Nullify key bytes if node was encrypted
+            FMemory.Memset(SharedKeyBytes, 0, sizeof(SharedKeyBytes));
+        }
+
+        // Finally write
+        channel.write(dstBuffer);
+    }
+
 
 
     // lazy deflater
@@ -229,5 +314,26 @@ public class PakCreator
         }
 
         return deflateDstBuffer;
+    }
+
+    private void writePakEntry(final FPakEntry pakEntry, final WritableByteChannel channel) throws IOException
+    {
+        final int serializedSize = toInt(pakEntry.GetSerializedSize(pakVersion));
+        if ((pakEntryBuffer == null) || (pakEntryBuffer.capacity() < serializedSize))
+        {
+            // Let's align by 256 to reduce scattering
+            pakEntryBuffer = ByteBuffer.allocate(Align(serializedSize, 256));
+
+            // Endian should be little endian
+            pakEntryBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        }
+
+        // Serialize pak entry
+        pakEntryBuffer.rewind().limit(pakEntryBuffer.capacity());
+        pakEntry.Serialize(pakEntryBuffer, pakVersion);
+
+        // Finally write to the channel
+        pakEntryBuffer.flip();
+        channel.write(pakEntryBuffer);
     }
 }
