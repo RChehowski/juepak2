@@ -20,17 +20,14 @@ public class Main
 {
     public static void main(String[] args) throws Exception
     {
-        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes1 ->
+        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes ->
         {
             final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
-            System.arraycopy(decode, 0, bytes1, 0, bytes1.length);
+            System.arraycopy(decode, 0, bytes, 0, bytes.length);
         });
 
 
-        final ByteBuffer allocate = ByteBuffer.allocate(100);
-        UE4Serializer.WriteString(allocate, "abc");
-
-
+        // Prepare packer
         final Packer packer = Packer.builder()
                 .encryptIndex(false)
                 .encryptContent(false)
@@ -40,6 +37,7 @@ public class Main
                 .build();
 
 
+        // Packing
         final Path folder = Paths.get("/Volumes/Samsung/Projects/UnrealEngine/FeaturePacks");
         final List<Path> pathsToPack = Files.walk(folder).filter(Files::isRegularFile).collect(Collectors.toList());
 
@@ -47,12 +45,10 @@ public class Main
         {
             packer.add(path);
         }
-
         packer.close();
 
 
-
-        // Broken
+        // Read (unpack)
         try (final FPakFile fPakFile = new FPakFile("/Users/netherwire/Desktop/Created.pak"))
         {
             for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
