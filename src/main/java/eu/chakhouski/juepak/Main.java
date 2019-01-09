@@ -5,35 +5,25 @@ import eu.chakhouski.juepak.pak.FPakEntry;
 import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.util.PakCreator;
-import eu.chakhouski.juepak.pak.packing.FPakInputPair;
+import eu.chakhouski.juepak.util.Packer;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class Main
 {
     public static void main(String[] args) throws Exception
     {
-        final byte[] bytes = "MANIFEST".getBytes(StandardCharsets.US_ASCII);
-
-        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(new Consumer<byte[]>()
+        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes1 ->
         {
-            @Override
-            public void accept(byte[] bytes)
-            {
-                final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
-
-                System.arraycopy(decode, 0, bytes, 0, bytes.length);
-            }
+            final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
+            System.arraycopy(decode, 0, bytes1, 0, bytes1.length);
         });
 
 
@@ -41,51 +31,36 @@ public class Main
         UE4Serializer.WriteString(allocate, "abc");
 
 
-        final String createdPak = "C:\\Users\\ASUS\\Desktop\\Sample.pak";
-        try (final PakCreator pakCreator = new PakCreator(createdPak, FPakInfo.PakFile_Version_Latest))
+        final Packer packer = Packer.builder()
+                .encryptIndex(false)
+                .encryptContent(false)
+                .compressContent(true)
+                .pakVersion(FPakInfo.PakFile_Version_RelativeChunkOffsets)
+                .savePath(Paths.get("/Users/netherwire/Desktop/Created.pak"))
+                .build();
+
+
+        final Path folder = Paths.get("/Volumes/Samsung/Projects/UnrealEngine/FeaturePacks");
+        final List<Path> pathsToPack = Files.walk(folder).filter(Files::isRegularFile).collect(Collectors.toList());
+
+        for (Path path : pathsToPack)
         {
-            final List<FPakInputPair> pairs = new ArrayList<>();
-
-            final Path folder = Paths.get("C:\\Users\\ASUS\\Desktop\\Extract");
-
-            Files.walk(folder)
-                .filter(Files::isRegularFile)
-                .forEach(path -> {
-//                    final Path dest = folder.relativize(path);
-//                    System.out.println(path.toString() + " -> " + dest.toString());
-
-                    final String srcPath = path.toString().replaceAll("\\\\", "/");
-                    final String dstPath = path.toString().replaceAll("\\\\", "/");
-
-                    final FPakInputPair pair = new FPakInputPair(srcPath, dstPath);
-
-                    pairs.add(pair);
-                });
-
-            final String s = PakCreator.GetCommonRootPath(pairs);
-            System.out.println("S: \"" + s + "\"");
+            packer.add(path);
         }
 
+        packer.close();
 
 
-
-//        try (final FileOutputStream fos = new FileOutputStream("C:\\Users\\ASUS\\Desktop\\Sample.pak"))
-//        {
-//            final FPakEntry fPakEntry = pakCreator.deflateFile(
-//                    new FileInputStream("C:\\Users\\ASUS\\Desktop\\Content.txt"), fos.getChannel(), true,
-//                    64 * 1024);
-//        }
-//
-//
-        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pak";
 
         // Broken
-        try (final FPakFile fPakFile = new FPakFile(createdPak))
+        try (final FPakFile fPakFile = new FPakFile("/Users/netherwire/Desktop/Created.pak"))
         {
             for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
             {
                 FPakEntry e = iterator.next();
                 System.out.println(iterator.toString());
+
+                iterator.extractMixed("/Users/netherwire/Desktop/Extract");
             }
         }
     }

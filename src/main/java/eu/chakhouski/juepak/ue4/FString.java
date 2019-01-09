@@ -102,7 +102,7 @@ public class FString
 
     public static String Left(String Str, int Index)
     {
-        return Str.substring(0, Index);
+        return Str.substring(0, FMath.Clamp(Index, 0, Str.length()));
     }
 
     /** @return the substring from Start position for Count characters. */

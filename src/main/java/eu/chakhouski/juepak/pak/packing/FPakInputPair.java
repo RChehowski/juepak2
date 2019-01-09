@@ -1,7 +1,6 @@
 package eu.chakhouski.juepak.pak.packing;
 
 import eu.chakhouski.juepak.annotations.FStruct;
-import eu.chakhouski.juepak.util.PakCreator;
 
 @FStruct
 public class FPakInputPair

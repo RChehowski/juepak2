@@ -7,7 +7,6 @@ import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
-import eu.chakhouski.juepak.util.UESerializable;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;

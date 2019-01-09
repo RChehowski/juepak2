@@ -4,12 +4,9 @@ import eu.chakhouski.juepak.ECompressionFlags;
 import eu.chakhouski.juepak.pak.FPakCompressedBlock;
 import eu.chakhouski.juepak.pak.FPakEntry;
 import eu.chakhouski.juepak.pak.FPakInfo;
-import eu.chakhouski.juepak.pak.packing.FPakInputPair;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
-import eu.chakhouski.juepak.ue4.FPaths;
-import eu.chakhouski.juepak.ue4.FString;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -19,25 +16,19 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.util.Map;
 import java.util.zip.Deflater;
 
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.AlignDown;
-import static eu.chakhouski.juepak.util.Misc.BOOL;
-import static eu.chakhouski.juepak.util.Misc.TEXT;
 import static eu.chakhouski.juepak.util.Misc.toByte;
 import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
@@ -67,7 +58,9 @@ public class PakCreator implements AutoCloseable
 
     private ByteBuffer pakEntryBuffer;
 
-    private List<FPakEntry> entries = new ArrayList<>();
+
+
+    private Map<Path, FPakEntry> entries = new HashMap<>();
 
     private static final MessageDigest Sha1;
 
@@ -93,26 +86,27 @@ public class PakCreator implements AutoCloseable
     @Override
     public void close() throws Exception
     {
-        final FPakInfo pakInfo = createIndex(false, entries, pakChannel);
-
-        final ByteBuffer b = ByteBuffer.allocate(toInt(pakInfo.GetSerializedSize(pakVersion)));
-        pakInfo.Serialize(b);
-
-        b.flip();
-        pakChannel.write(b);
-
-        // Close stream
-        pakStream.close();
+//        final FPakInfo pakInfo = createIndex(false, entries, pakChannel);
+//
+//        final ByteBuffer b = ByteBuffer.allocate(toInt(pakInfo.GetSerializedSize(pakVersion)));
+//        pakInfo.Serialize(b);
+//
+//        b.flip();
+//        pakChannel.write(b);
+//
+//        // Close stream
+//        pakStream.close();
     }
 
-    public final void addFile(Path path)
+    public final void addFile(Path path) throws IOException
     {
+        final int maxCompressionBlockSize = 64 * 1024;
+
         try (final FileInputStream fis = new FileInputStream(path.toFile()))
         {
-            final FPakEntry e = deflateFile(fis, pakChannel, true, 64 * 1024);
-            entries.add(e);
+            final FPakEntry e = deflateFile(fis, pakChannel, true, maxCompressionBlockSize);
+//            entries.add(e);
         }
-        catch (IOException e) {}
     }
 
     private FPakEntry deflateFile(InputStream is, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
@@ -391,6 +385,11 @@ public class PakCreator implements AutoCloseable
         return deflateDstBuffer;
     }
 
+    public void finishWrite()
+    {
+
+    }
+
 //    private void writePakEntry(final FPakEntry pakEntry, final WritableByteChannel channel) throws IOException
 //    {
 //        final int serializedSize = toInt(pakEntry.GetSerializedSize(pakVersion));
@@ -412,62 +411,64 @@ public class PakCreator implements AutoCloseable
 //        channel.write(pakEntryBuffer);
 //    }
 
-    private static String GetLongestPath(List<FPakInputPair> FilesToAdd)
-    {
-        String LongestPath = "";
-        int MaxNumDirectories = 0;
+//    private static String GetLongestPath(List<FPakInputPair> FilesToAdd)
+//    {
+//        String LongestPath = "";
+//        int MaxNumDirectories = 0;
+//
+//        for (final FPakInputPair FileToAdd : FilesToAdd)
+//        {
+//            final String Filename = FileToAdd.Dest;
+//
+//            int NumDirectories = 0;
+//            for (int Index = 0; Index < Filename.length(); Index++)
+//            {
+//                if (Filename.charAt(Index) == '/')
+//                {
+//                    NumDirectories++;
+//                }
+//            }
+//            if (NumDirectories > MaxNumDirectories)
+//            {
+//                LongestPath = Filename;
+//                MaxNumDirectories = NumDirectories;
+//            }
+//        }
+//        return FPaths.GetPath(LongestPath) + TEXT("/");
+//    }
+//
+//    public static String GetCommonRootPath(List<FPakInputPair> FilesToAdd)
+//    {
+//        String Root = GetLongestPath(FilesToAdd);
+//        for (int FileIndex = 0; FileIndex < FilesToAdd.size() && BOOL(Root.length()); FileIndex++)
+//        {
+//            String Filename = FilesToAdd.get(FileIndex).Dest;
+//            String Path = FPaths.GetPath(Filename) + TEXT("/");
+//            int CommonSeparatorIndex = -1;
+//            int SeparatorIndex = Path.indexOf('/');
+//            while (SeparatorIndex >= 0)
+//            {
+//                if (FString.Strnicmp(Root, +0, Path, +0, SeparatorIndex + 1) != 0)
+//                {
+//                    break;
+//                }
+//                CommonSeparatorIndex = SeparatorIndex;
+//                if (CommonSeparatorIndex + 1 < Path.length())
+//                {
+//                    SeparatorIndex = Path.indexOf('/', CommonSeparatorIndex + 1);
+//                }
+//                else
+//                {
+//                    break;
+//                }
+//            }
+//            if ((CommonSeparatorIndex + 1) < Root.length())
+//            {
+//                Root = Root.substring(0, CommonSeparatorIndex + 1);
+//            }
+//        }
+//        return Root;
+//    }
 
-        for (final FPakInputPair FileToAdd : FilesToAdd)
-        {
-            final String Filename = FileToAdd.Dest;
 
-            int NumDirectories = 0;
-            for (int Index = 0; Index < Filename.length(); Index++)
-            {
-                if (Filename.charAt(Index) == '/')
-                {
-                    NumDirectories++;
-                }
-            }
-            if (NumDirectories > MaxNumDirectories)
-            {
-                LongestPath = Filename;
-                MaxNumDirectories = NumDirectories;
-            }
-        }
-        return FPaths.GetPath(LongestPath) + TEXT("/");
-    }
-
-    public static String GetCommonRootPath(List<FPakInputPair> FilesToAdd)
-    {
-        String Root = GetLongestPath(FilesToAdd);
-        for (int FileIndex = 0; FileIndex < FilesToAdd.size() && BOOL(Root.length()); FileIndex++)
-        {
-            String Filename = FilesToAdd.get(FileIndex).Dest;
-            String Path = FPaths.GetPath(Filename) + TEXT("/");
-            int CommonSeparatorIndex = -1;
-            int SeparatorIndex = Path.indexOf('/');
-            while (SeparatorIndex >= 0)
-            {
-                if (FString.Strnicmp(Root, +0, Path, +0, SeparatorIndex + 1) != 0)
-                {
-                    break;
-                }
-                CommonSeparatorIndex = SeparatorIndex;
-                if (CommonSeparatorIndex + 1 < Path.length())
-                {
-                    SeparatorIndex = Path.indexOf('/', CommonSeparatorIndex + 1);
-                }
-                else
-                {
-                    break;
-                }
-            }
-            if ((CommonSeparatorIndex + 1) < Root.length())
-            {
-                Root = Root.substring(0, CommonSeparatorIndex + 1);
-            }
-        }
-        return Root;
-    }
 }
