@@ -26,7 +26,6 @@ public class UE4Serializer
     private static final ByteBuffer dstEncodeBuffer = ByteBuffer.allocate(ENCODE_BUFFER_SIZE * Character.BYTES)
             .order(ByteOrder.nativeOrder());
 
-
     public static int GetPreciseStringEncodeLength(String s)
     {
         int length = 0;
@@ -52,7 +51,34 @@ public class UE4Serializer
         return length;
     }
 
-    public static void WriteString(ByteBuffer b, String s)
+    public static void WriteByte(ByteBuffer b, byte value)
+    {
+        // Setup byte order
+        b.order(ByteOrder.LITTLE_ENDIAN);
+
+        // Put data
+        b.put(value);
+    }
+
+    public static void WriteInt(ByteBuffer b, int value)
+    {
+        // Setup byte order
+        b.order(ByteOrder.LITTLE_ENDIAN);
+
+        // Put data
+        b.putInt(value);
+    }
+
+    public static void WriteLong(ByteBuffer b, long value)
+    {
+        // Setup byte order
+        b.order(ByteOrder.LITTLE_ENDIAN);
+
+        // Put data
+        b.putLong(value);
+    }
+
+    public static void WriteString(ByteBuffer b, String value)
     {
         // Setup byte order
         b.order(ByteOrder.LITTLE_ENDIAN);
@@ -63,16 +89,16 @@ public class UE4Serializer
 
         // Write encoded content
         final CharsetEncoder encoder;
-        if (doEncodeAndWrite(asciiEncoder, b, s))
+        if (doEncodeAndWrite(asciiEncoder, b, value))
         {
             encoder = asciiEncoder;
         }
         else
         {
-            if (doEncodeAndWrite(utf16Encoder, b, s))
+            if (doEncodeAndWrite(utf16Encoder, b, value))
                 encoder = utf16Encoder;
             else
-                throw new IllegalArgumentException("No UE4-supported encoder can encode \"" + s + "\"");
+                throw new IllegalArgumentException("No UE4-supported encoder can encode \"" + value + "\"");
         }
 
         final int contentFinishPosition = b.position();
@@ -85,9 +111,9 @@ public class UE4Serializer
 
         // Write length
         if (encoder == utf16Encoder)
-            b.putInt(-(s.length() + /* 0-terminator */1));
+            b.putInt(-(value.length() + /* 0-terminator */1));
         else
-            b.putInt(s.length() + /* 0-terminator */1);
+            b.putInt(value.length() + /* 0-terminator */1);
 
         b.position(contentFinishPosition);
 

@@ -53,11 +53,15 @@ public class UE4Deserializer
         return Result.replaceAll("\0", "");
     }
 
+    public static byte ReadByte(ByteBuffer b)
+    {
+        return b.order(ByteOrder.LITTLE_ENDIAN).get();
+    }
+
     public static int ReadInt(ByteBuffer b)
     {
         return b.order(ByteOrder.LITTLE_ENDIAN).getInt();
     }
-
 
     public static long ReadLong(ByteBuffer b)
     {

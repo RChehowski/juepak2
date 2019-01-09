@@ -1,19 +1,13 @@
 package eu.chakhouski.juepak.util;
 
-import eu.chakhouski.juepak.FFileIterator;
-import eu.chakhouski.juepak.FPakEntry;
-import eu.chakhouski.juepak.FPakFile;
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.Operator;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc

@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak;
+package eu.chakhouski.juepak.pak;
 
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.Operator;
@@ -6,6 +6,8 @@ import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.util.UE4Deserializer;
+import eu.chakhouski.juepak.util.UE4Serializer;
+import eu.chakhouski.juepak.util.UESerializable;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -123,8 +125,7 @@ public class FPakInfo
             EncryptionKeyGuid.Deserialize(b);
         }
 
-        bEncryptedIndex = b.get();
-
+        bEncryptedIndex = UE4Deserializer.ReadByte(b);
         Magic = UE4Deserializer.ReadInt(b);
         Version = UE4Deserializer.ReadInt(b);
         IndexOffset = UE4Deserializer.ReadLong(b);
@@ -141,6 +142,23 @@ public class FPakInfo
         {
             EncryptionKeyGuid.Invalidate();
         }
+    }
+
+    public void Serialize(ByteBuffer b)
+    {
+        if (Version >= PakFile_Version_EncryptionKeyGuid)
+        {
+            EncryptionKeyGuid.Serialize(b);
+        }
+
+        // TODO: Not sure about it
+        UE4Serializer.WriteByte(b, bEncryptedIndex);
+        UE4Serializer.WriteInt(b, Magic);
+        UE4Serializer.WriteInt(b, Version);
+        UE4Serializer.WriteLong(b, IndexOffset);
+        UE4Serializer.WriteLong(b, IndexSize);
+
+        b.put(IndexHash);
     }
 
     @Operator("bool")

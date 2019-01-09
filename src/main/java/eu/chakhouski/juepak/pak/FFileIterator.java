@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak;
+package eu.chakhouski.juepak.pak;
 
 import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.util.PakExtractor;

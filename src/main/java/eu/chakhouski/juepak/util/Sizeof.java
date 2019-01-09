@@ -54,57 +54,49 @@ public class Sizeof
     public static int sizeof(float[] array) { return Float.BYTES * array.length; }
     public static int sizeof(double[] array) { return Double.BYTES * array.length; }
 
-    public static int sizeof(Class<?> clazz)
-    {
-        return sizeCache.computeIfAbsent(clazz, Sizeof::getStructSize);
-    }
-
     public static int sizeof(Object object)
     {
-        return sizeof(object.getClass());
+        return getStructSize(object.getClass());
+    }
+
+    public static int sizeof(Class<?> clazz)
+    {
+        return getStructSize(clazz);
     }
 
     private static int getStructSize(Class<?> clazz)
     {
-        if (sizeCache.containsKey(clazz))
+        final Integer cachedSize = sizeCache.get(clazz);
+        if (cachedSize != null)
         {
-            return sizeCache.get(clazz);
+            return cachedSize;
         }
         else if (clazz.isAnnotationPresent(FStruct.class))
         {
+            // Mustn't have any superclasses
             if (!Object.class.equals(clazz.getSuperclass()))
-            {
                 throw new RuntimeException("FStruct must only extend Object");
-            }
 
-            // Interfaces such as UESerializable and UEDeserializable are allowed
-
-            int calculatedSize = 0;
-            final Field[] fields = clazz.getDeclaredFields();
-
-            for (int i = 0, length = fields.length; i < length; i++)
+            // Inspect our object
+            int size = 0;
+            for (final Field field : clazz.getDeclaredFields())
             {
-                final Field f = fields[i];
-
-                if (!Modifier.isStatic(f.getModifiers()))
+                if (!Modifier.isStatic(field.getModifiers()))
                 {
-                    if (f.isAnnotationPresent(StaticSize.class))
-                    {
-                        calculatedSize += f.getAnnotation(StaticSize.class).value();
-                    }
+                    final StaticSize staticSize = field.getAnnotation(StaticSize.class);
+                    final int elementSize = getStructSize(field.getType());
+
+                    if (staticSize != null)
+                        size += elementSize * staticSize.value();
                     else
-                    {
-                        calculatedSize += getStructSize(f.getType());
-                    }
+                        size += elementSize;
                 }
             }
-
-            return calculatedSize;
+            return size;
         }
         else
         {
-            throw new RuntimeException(clazz.getName() + " is neither primitive nor FStruct, and thus it's size " +
-                    "cannot be determined");
+            throw new RuntimeException(clazz.getName() + " size cannot be determined");
         }
     }
 }

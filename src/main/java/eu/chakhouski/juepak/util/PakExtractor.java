@@ -1,10 +1,10 @@
 package eu.chakhouski.juepak.util;
 
 import eu.chakhouski.juepak.ECompressionFlags;
-import eu.chakhouski.juepak.FPakCompressedBlock;
-import eu.chakhouski.juepak.FPakEntry;
-import eu.chakhouski.juepak.FPakFile;
-import eu.chakhouski.juepak.FPakInfo;
+import eu.chakhouski.juepak.pak.FPakCompressedBlock;
+import eu.chakhouski.juepak.pak.FPakEntry;
+import eu.chakhouski.juepak.pak.FPakFile;
+import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;

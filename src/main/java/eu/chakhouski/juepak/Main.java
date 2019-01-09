@@ -1,24 +1,30 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.pak.FFileIterator;
+import eu.chakhouski.juepak.pak.FPakEntry;
+import eu.chakhouski.juepak.pak.FPakFile;
+import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.util.PakCreator;
+import eu.chakhouski.juepak.pak.packing.FPakInputPair;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FilenameFilter;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.function.Consumer;
-import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 
 public class Main
 {
     public static void main(String[] args) throws Exception
     {
+        final byte[] bytes = "MANIFEST".getBytes(StandardCharsets.US_ASCII);
+
         FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(new Consumer<byte[]>()
         {
             @Override
@@ -35,24 +41,32 @@ public class Main
         UE4Serializer.WriteString(allocate, "abc");
 
 
-        final PakCreator pakCreator = new PakCreator("/Users/netherwire/Desktop/Sample.pak", FPakInfo.PakFile_Version_Latest);
-
-        final File file = new File("/Users/netherwire/Pictures");
-        file.listFiles(new FilenameFilter()
+        final String createdPak = "C:\\Users\\ASUS\\Desktop\\Sample.pak";
+        try (final PakCreator pakCreator = new PakCreator(createdPak, FPakInfo.PakFile_Version_Latest))
         {
-            @Override
-            public boolean accept(File dir, String name)
-            {
-                final Path absPath = dir.toPath().resolve(name);
+            final List<FPakInputPair> pairs = new ArrayList<>();
 
-                System.out.println(absPath.toString());
-                pakCreator.addFile(absPath);
+            final Path folder = Paths.get("C:\\Users\\ASUS\\Desktop\\Extract");
 
-                return false;
-            }
-        });
+            Files.walk(folder)
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+//                    final Path dest = folder.relativize(path);
+//                    System.out.println(path.toString() + " -> " + dest.toString());
 
-        pakCreator.finalizeWrite();
+                    final String srcPath = path.toString().replaceAll("\\\\", "/");
+                    final String dstPath = path.toString().replaceAll("\\\\", "/");
+
+                    final FPakInputPair pair = new FPakInputPair(srcPath, dstPath);
+
+                    pairs.add(pair);
+                });
+
+            final String s = PakCreator.GetCommonRootPath(pairs);
+            System.out.println("S: \"" + s + "\"");
+        }
+
+
 
 
 //        try (final FileOutputStream fos = new FileOutputStream("C:\\Users\\ASUS\\Desktop\\Sample.pak"))
@@ -63,18 +77,16 @@ public class Main
 //        }
 //
 //
-//        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pak";
-//
-//        // Broken
-//        try (final FPakFile fPakFile = new FPakFile(brokenFile))
-//        {
-//            for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
-//            {
-//                FPakEntry e = iterator.next();
-//
-//                System.out.println(iterator.toString());
-//                iterator.extractToMemory(new byte[(int)e.UncompressedSize]);
-//            }
-//        }
+        final String brokenFile = "C:\\Users\\ASUS\\Desktop\\boh_gdc-WindowsNoEditor_broken.pak";
+
+        // Broken
+        try (final FPakFile fPakFile = new FPakFile(createdPak))
+        {
+            for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
+            {
+                FPakEntry e = iterator.next();
+                System.out.println(iterator.toString());
+            }
+        }
     }
 }

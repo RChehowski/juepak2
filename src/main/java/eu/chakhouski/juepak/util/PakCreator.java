@@ -1,12 +1,15 @@
 package eu.chakhouski.juepak.util;
 
 import eu.chakhouski.juepak.ECompressionFlags;
-import eu.chakhouski.juepak.FPakCompressedBlock;
-import eu.chakhouski.juepak.FPakEntry;
-import eu.chakhouski.juepak.FPakInfo;
+import eu.chakhouski.juepak.pak.FPakCompressedBlock;
+import eu.chakhouski.juepak.pak.FPakEntry;
+import eu.chakhouski.juepak.pak.FPakInfo;
+import eu.chakhouski.juepak.pak.packing.FPakInputPair;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
+import eu.chakhouski.juepak.ue4.FPaths;
+import eu.chakhouski.juepak.ue4.FString;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -21,19 +24,31 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import java.util.zip.Deflater;
 
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.AlignDown;
+import static eu.chakhouski.juepak.util.Misc.BOOL;
+import static eu.chakhouski.juepak.util.Misc.TEXT;
+import static eu.chakhouski.juepak.util.Misc.toByte;
 import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
-public class PakCreator
+public class PakCreator implements AutoCloseable
 {
     private final int pakVersion;
     private final String savePath;
+
+
+    private final FileOutputStream pakStream;
     private final FileChannel pakChannel;
 
     /**
@@ -66,32 +81,39 @@ public class PakCreator
         }
     }
 
-
     public PakCreator(String savePath, int pakVersion) throws FileNotFoundException
     {
         this.savePath = savePath;
         this.pakVersion = pakVersion;
 
-        final FileOutputStream stream = new FileOutputStream(savePath);
-        pakChannel = stream.getChannel();
+        pakStream = new FileOutputStream(savePath);
+        pakChannel = pakStream.getChannel();
+    }
+
+    @Override
+    public void close() throws Exception
+    {
+        final FPakInfo pakInfo = createIndex(false, entries, pakChannel);
+
+        final ByteBuffer b = ByteBuffer.allocate(toInt(pakInfo.GetSerializedSize(pakVersion)));
+        pakInfo.Serialize(b);
+
+        b.flip();
+        pakChannel.write(b);
+
+        // Close stream
+        pakStream.close();
     }
 
     public final void addFile(Path path)
     {
         try (final FileInputStream fis = new FileInputStream(path.toFile()))
         {
-            final FPakEntry e = deflateFile(fis, pakChannel, true, 65536);
+            final FPakEntry e = deflateFile(fis, pakChannel, true, 64 * 1024);
             entries.add(e);
         }
         catch (IOException e) {}
     }
-
-    public void finalizeWrite() throws IOException
-    {
-        createIndex(true, entries, pakChannel);
-    }
-
-
 
     private FPakEntry deflateFile(InputStream is, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
             throws IOException
@@ -99,13 +121,12 @@ public class PakCreator
         // Store initial position to write here a FPakEntry instance a bit later
         final long dataOffset = os.position();
 
-        // The Deflater and buffers are shared withing this PakCreator
-        // ByteBuffers are being allocated for
+        // The instance and buffers are shared withing this PakCreator
         final Deflater deflater = getDeflater();
         final ByteBuffer deflateSrcBuffer = getDeflateSrcBuffer(MaxCompressionBlockSize);
         final ByteBuffer deflateDstBuffer = getDeflateDstBuffer(MaxCompressionBlockSize);
 
-        final List<FPakCompressedBlock> compressionBlocks = new ArrayList<>();
+        final List<FPakCompressedBlock> blocks = new ArrayList<>();
 
         // Acquire key if entry is encrypted to save resources
         if (bEncrypt)
@@ -156,7 +177,7 @@ public class PakCreator
 
                 // Remember compressed block end }
                 compressedBlock.CompressedEnd = os.position();
-                compressionBlocks.add(compressedBlock);
+                blocks.add(compressedBlock);
             }
 
             // Perform overflow check
@@ -183,13 +204,15 @@ public class PakCreator
 
         // Finally, setup a PakInfo here
         final FPakEntry entry = new FPakEntry();
-        entry.Offset = dataOffset;
-        entry.UncompressedSize = uncompressedSize;
-        entry.Size = size;
-        entry.Hash = Sha1.digest();
-        entry.CompressionMethod = ECompressionFlags.COMPRESS_ZLIB;
-        entry.CompressionBlocks = compressionBlocks.toArray(new FPakCompressedBlock[0]);
-        entry.CompressionBlockSize = compressionBlockSize;
+        {
+            entry.Offset = dataOffset;
+            entry.UncompressedSize = uncompressedSize;
+            entry.Size = size;
+            entry.Hash = Sha1.digest();
+            entry.CompressionMethod = ECompressionFlags.COMPRESS_ZLIB;
+            entry.CompressionBlocks = blocks.toArray(new FPakCompressedBlock[0]);
+            entry.CompressionBlockSize = compressionBlockSize;
+        }
 
         // Set flags
         entry.SetEncrypted(bEncrypt);
@@ -215,62 +238,114 @@ public class PakCreator
         return entry;
     }
 
-    private void createIndex(boolean encryptIndex, Iterable<FPakEntry> pakEntries, final FileChannel channel) throws IOException
+    private FPakInfo createIndex(boolean encryptIndex, Collection<FPakEntry> pakEntries, final FileChannel channel) throws IOException
     {
-        final ByteBuffer srcBuffer = ByteBuffer.allocate(64 * 1024).order(ByteOrder.LITTLE_ENDIAN);
+        final long indexBeginOffset = channel.position();
 
+        Sha1.reset();
+
+        // TODO: Replace mock data
+        final ByteBuffer map = ByteBuffer.allocate(100);
+        UE4Serializer.WriteString(map, "../../../");
+        UE4Serializer.WriteInt(map, pakEntries.size());
+        map.flip();
+        Sha1.update(map.array(), 0, map.limit());
+
+
+        channel.write(map);
+
+        // Acquire key if entry is encrypted to save resources
+        if (encryptIndex)
+        {
+            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(SharedKeyBytes);
+        }
+
+        // Allocate initial buffer (it might be re-allocated during algorithm progression)
+        ByteBuffer buffer = ByteBuffer.allocate(1024 * FAES.AESBlockSize).order(ByteOrder.LITTLE_ENDIAN);
+
+        FPakEntry cachedPakEntry = null;
         for (Iterator<FPakEntry> iterator = pakEntries.iterator(); iterator.hasNext(); )
         {
-            FPakEntry pakEntry = iterator.next();
+            buffer.rewind().limit(buffer.capacity());
 
+            int numSerializedEntriesPerLoop = 0;
+            while ((cachedPakEntry != null) || iterator.hasNext())
+            {
+                // take if not taken yet
+                if (cachedPakEntry == null)
+                {
+                    cachedPakEntry = iterator.next();
+                }
 
+                final long serializedSize = cachedPakEntry.GetSerializedSize(pakVersion);
+                if (buffer.position() + serializedSize >= buffer.capacity())
+                {
+                    if (numSerializedEntriesPerLoop == 0)
+                    {
+                        final int newCap = encryptIndex ? Align(toInt(serializedSize), FAES.AESBlockSize) : toInt(serializedSize);
+
+                        System.err.println("Insufficient buffer capacity to fit " + serializedSize + " bytes: " + buffer.capacity()
+                            + " new: " + newCap + (encryptIndex ? " (aligned by " + FAES.AESBlockSize + ")" : ""));
+
+                        buffer = ByteBuffer.allocate(newCap).order(ByteOrder.LITTLE_ENDIAN);
+                    }
+
+                    break;
+                }
+
+                // serialize and discard entry
+                cachedPakEntry.Serialize(buffer, pakVersion);
+                cachedPakEntry = null;
+
+                // entry successfully serialized into the buffer
+                ++numSerializedEntriesPerLoop;
+            }
+
+            // Flip buffer
+            buffer.flip();
+
+            // Encrypt part if it should be encrypted
+            if (encryptIndex)
+            {
+                final int alignedPartSize = Align(buffer.limit(), FAES.AESBlockSize);
+
+                // Check capacity
+                if (alignedPartSize > buffer.capacity())
+                {
+                    final ByteBuffer newBuffer = ByteBuffer.allocate(alignedPartSize).order(ByteOrder.LITTLE_ENDIAN);
+                    newBuffer.put(buffer);
+                    newBuffer.position(0).limit(alignedPartSize);
+
+                    buffer = newBuffer;
+                }
+
+                // Limit with aligned size
+                buffer.limit(alignedPartSize);
+
+                // Encrypt data
+                FAES.EncryptData(buffer.array(), buffer.limit(), SharedKeyBytes);
+            }
+
+            // Update sha1
+            Sha1.update(buffer.array(), 0, buffer.limit());
+
+            // Write data to channel
+            channel.write(buffer);
         }
 
+        final long indexEndOffset = channel.position();
 
-        // Source buffer is direct and it will lazily allocate it's data
-        // 1MB should be enough
-        // TODO: REWRITE, write sequentially
-
-
-        for (final FPakEntry entry : pakEntries)
-            entry.Serialize(srcBuffer, pakVersion);
-
-
-        // Add zero bytes if index should be encrypted
-        final int finalSize;
-        if (encryptIndex)
+        final FPakInfo pi = new FPakInfo();
         {
-            final int unalignedSize = srcBuffer.position();
-            finalSize = Align(unalignedSize, FAES.AESBlockSize);
-
-            for (int i = 0; i < (finalSize - unalignedSize); i++)
-                srcBuffer.put((byte)0);
-        }
-        else
-        {
-            finalSize = srcBuffer.position();
+            pi.Magic = FPakInfo.PakFile_Magic;
+            pi.Version = pakVersion;
+            pi.IndexOffset = indexBeginOffset;
+            pi.IndexSize = indexEndOffset - indexBeginOffset;
+            pi.IndexHash = Sha1.digest();
+            pi.bEncryptedIndex = toByte(encryptIndex);
         }
 
-        // Destination buffer is indirect and
-        final ByteBuffer dstBuffer = ByteBuffer.allocate(finalSize).order(ByteOrder.LITTLE_ENDIAN);
-
-        srcBuffer.flip();
-        dstBuffer.put(srcBuffer);
-
-        if (encryptIndex)
-        {
-            // Acquire key if entry is encrypted to save resources
-            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(SharedKeyBytes);
-
-            // Encrypt data
-            FAES.EncryptData(dstBuffer.array(), dstBuffer.limit(), SharedKeyBytes);
-
-            // Nullify key bytes if node was encrypted
-            FMemory.Memset(SharedKeyBytes, 0, sizeof(SharedKeyBytes));
-        }
-
-        // Finally write
-        channel.write(dstBuffer);
+        return pi;
     }
 
 
@@ -304,7 +379,7 @@ public class PakCreator
         return deflateSrcBuffer;
     }
 
-    public ByteBuffer getDeflateDstBuffer(int n)
+    private ByteBuffer getDeflateDstBuffer(int n)
     {
         if (deflateDstBuffer == null)
         {
@@ -316,24 +391,83 @@ public class PakCreator
         return deflateDstBuffer;
     }
 
-    private void writePakEntry(final FPakEntry pakEntry, final WritableByteChannel channel) throws IOException
+//    private void writePakEntry(final FPakEntry pakEntry, final WritableByteChannel channel) throws IOException
+//    {
+//        final int serializedSize = toInt(pakEntry.GetSerializedSize(pakVersion));
+//        if ((pakEntryBuffer == null) || (pakEntryBuffer.capacity() < serializedSize))
+//        {
+//            // Let's align by 256 to reduce scattering
+//            pakEntryBuffer = ByteBuffer.allocate(Align(serializedSize, 256));
+//
+//            // Endian should be little endian
+//            pakEntryBuffer.order(ByteOrder.LITTLE_ENDIAN);
+//        }
+//
+//        // Serialize pak entry
+//        pakEntryBuffer.rewind().limit(pakEntryBuffer.capacity());
+//        pakEntry.Serialize(pakEntryBuffer, pakVersion);
+//
+//        // Finally write to the channel
+//        pakEntryBuffer.flip();
+//        channel.write(pakEntryBuffer);
+//    }
+
+    private static String GetLongestPath(List<FPakInputPair> FilesToAdd)
     {
-        final int serializedSize = toInt(pakEntry.GetSerializedSize(pakVersion));
-        if ((pakEntryBuffer == null) || (pakEntryBuffer.capacity() < serializedSize))
+        String LongestPath = "";
+        int MaxNumDirectories = 0;
+
+        for (final FPakInputPair FileToAdd : FilesToAdd)
         {
-            // Let's align by 256 to reduce scattering
-            pakEntryBuffer = ByteBuffer.allocate(Align(serializedSize, 256));
+            final String Filename = FileToAdd.Dest;
 
-            // Endian should be little endian
-            pakEntryBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            int NumDirectories = 0;
+            for (int Index = 0; Index < Filename.length(); Index++)
+            {
+                if (Filename.charAt(Index) == '/')
+                {
+                    NumDirectories++;
+                }
+            }
+            if (NumDirectories > MaxNumDirectories)
+            {
+                LongestPath = Filename;
+                MaxNumDirectories = NumDirectories;
+            }
         }
+        return FPaths.GetPath(LongestPath) + TEXT("/");
+    }
 
-        // Serialize pak entry
-        pakEntryBuffer.rewind().limit(pakEntryBuffer.capacity());
-        pakEntry.Serialize(pakEntryBuffer, pakVersion);
-
-        // Finally write to the channel
-        pakEntryBuffer.flip();
-        channel.write(pakEntryBuffer);
+    public static String GetCommonRootPath(List<FPakInputPair> FilesToAdd)
+    {
+        String Root = GetLongestPath(FilesToAdd);
+        for (int FileIndex = 0; FileIndex < FilesToAdd.size() && BOOL(Root.length()); FileIndex++)
+        {
+            String Filename = FilesToAdd.get(FileIndex).Dest;
+            String Path = FPaths.GetPath(Filename) + TEXT("/");
+            int CommonSeparatorIndex = -1;
+            int SeparatorIndex = Path.indexOf('/');
+            while (SeparatorIndex >= 0)
+            {
+                if (FString.Strnicmp(Root, +0, Path, +0, SeparatorIndex + 1) != 0)
+                {
+                    break;
+                }
+                CommonSeparatorIndex = SeparatorIndex;
+                if (CommonSeparatorIndex + 1 < Path.length())
+                {
+                    SeparatorIndex = Path.indexOf('/', CommonSeparatorIndex + 1);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if ((CommonSeparatorIndex + 1) < Root.length())
+            {
+                Root = Root.substring(0, CommonSeparatorIndex + 1);
+            }
+        }
+        return Root;
     }
 }

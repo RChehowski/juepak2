@@ -1,5 +1,6 @@
-package eu.chakhouski.juepak;
+package eu.chakhouski.juepak.pak;
 
+import eu.chakhouski.juepak.ECompressionFlags;
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
@@ -10,7 +11,6 @@ import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.util.Arrays;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;

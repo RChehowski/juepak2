@@ -1,5 +1,7 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.pak.FPakEntry;
+import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FMath;
 
@@ -9,7 +11,6 @@ import java.io.OutputStream;
 
 import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
-import static eu.chakhouski.juepak.util.Misc.BOOL;
 import static eu.chakhouski.juepak.util.Misc.TEXT;
 import static eu.chakhouski.juepak.util.Misc.checkf;
 

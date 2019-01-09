@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak;
+package eu.chakhouski.juepak.pak;
 
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
