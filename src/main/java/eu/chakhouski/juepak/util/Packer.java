@@ -9,9 +9,9 @@ import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -36,7 +36,7 @@ import static eu.chakhouski.juepak.ue4.AlignmentTemplates.AlignDown;
 import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
-public class Packer implements Closeable
+public class Packer
 {
     public static final class PackerSetup
     {
@@ -45,7 +45,6 @@ public class Packer implements Closeable
         private boolean compressContent = false;
 
         private int pakVersion = FPakInfo.PakFile_Version_Latest;
-        private Path savePath = null;
 
         public PackerSetup encryptIndex(boolean value) {
             encryptIndex = value;
@@ -65,11 +64,6 @@ public class Packer implements Closeable
 
         public PackerSetup pakVersion(int value) {
             pakVersion = value;
-            return this;
-        }
-
-        public PackerSetup savePath(Path value) {
-            savePath = value;
             return this;
         }
 
@@ -135,25 +129,14 @@ public class Packer implements Closeable
 
 
     // ! Push into array !
-
-
-    @Override
-    public void close() throws IOException
+    public void closeAndWrite(Path savePath) throws IOException
     {
-        // !!! Intial data
-        final Path savePath = setup.savePath;
-
-
-
         // !!! Computed data
         final Path commonPath = PathUtils.findCommonPath(false, paths);
 
+        final Map<String, FPakEntry> hashMap = new HashMap<>(paths.size());
 
-        final Map<Path, FPakEntry> hashMap = new HashMap<>(paths.size());
-
-
-        ;
-        try (final RandomAccessFile fos = new RandomAccessFile(savePath.toFile(), "rw"))
+        try (final FileOutputStream fos = new FileOutputStream(savePath.toFile()))
         {
             final FileChannel channel = fos.getChannel();
 
@@ -165,7 +148,9 @@ public class Packer implements Closeable
                     final long fileLength = file.length();
 
                     final FPakEntry entry = deflateFile(fis, fileLength, channel, setup.encryptContent, 64 * 1024);
-                    hashMap.put(commonPath.relativize(path), entry);
+                    final Path relativized = commonPath.relativize(path);
+
+                    hashMap.put(PathUtils.pathToPortableUE4String(relativized), entry);
                 }
             }
 
@@ -202,8 +187,6 @@ public class Packer implements Closeable
             System.out.println("Buf: " + entriesBuffer.toString());
             FSHA1.HashBuffer(entriesBuffer.array(), entriesBuffer.position(), pakInfo.IndexHash);
 
-
-//            entriesBuffer.flip();
             pakInfo.Serialize(entriesBuffer);
 
             entriesBuffer.flip();
@@ -216,8 +199,10 @@ public class Packer implements Closeable
     private FPakEntry deflateFile(InputStream is, final long fileLength, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
             throws IOException
     {
+        final long numBlocks = (long)Math.ceil((double) fileLength / MaxCompressionBlockSize);
+
         // Store initial position to write here a FPakEntry instance a bit later
-        final long dataOffset = os.position();
+        final long entryOffset = os.position();
 
         // The instance and buffers are shared withing this PakCreator
         final Deflater deflater = getDeflater();
@@ -234,6 +219,16 @@ public class Packer implements Closeable
         long uncompressedSize = 0;
         long size = 0;
         int compressionBlockSize = 0;
+
+
+        final FPakEntry entry = new FPakEntry();
+        entry.CompressionBlocks = new FPakCompressedBlock[toInt(numBlocks)];
+        entry.CompressionMethod = ECompressionFlags.COMPRESS_ZLIB;
+        entry.SetEncrypted(bEncrypt);
+        entry.SetDeleteRecord(false);
+
+        final long entrySerializedSize = entry.GetSerializedSize(setup.pakVersion);
+        os.position(os.position() + entrySerializedSize);
 
         Sha1.reset();
 
@@ -301,24 +296,18 @@ public class Packer implements Closeable
             FMemory.Memset(SharedKeyBytes, 0, sizeof(SharedKeyBytes));
 
         // Finally, setup a PakInfo here
-        final FPakEntry entry = new FPakEntry();
-        {
-            entry.Offset = dataOffset;
-            entry.UncompressedSize = uncompressedSize;
-            entry.Size = size;
-            entry.Hash = Sha1.digest();
-            entry.CompressionMethod = ECompressionFlags.COMPRESS_ZLIB;
-            entry.CompressionBlocks = blocks.toArray(new FPakCompressedBlock[0]);
-            entry.CompressionBlockSize = compressionBlockSize;
-        }
-
-        // Set flags
-        entry.SetEncrypted(bEncrypt);
-        entry.SetDeleteRecord(false);
+        entry.Offset = entryOffset;
+        entry.UncompressedSize = uncompressedSize;
+        entry.Size = size;
+        entry.Hash = Sha1.digest();
+        blocks.toArray(entry.CompressionBlocks);
+        entry.CompressionBlockSize = compressionBlockSize;
 
         // Calculate relative offset
-        final long entrySerializedSize = entry.GetSerializedSize(setup.pakVersion);
-        final long offset = (setup.pakVersion < FPakInfo.PakFile_Version_RelativeChunkOffsets) ? 0 : dataOffset;
+        assert entrySerializedSize == entry.GetSerializedSize(setup.pakVersion);
+        final long offset = (setup.pakVersion < FPakInfo.PakFile_Version_RelativeChunkOffsets) ?
+            entrySerializedSize : entryOffset + entrySerializedSize;
+
 
         for (final FPakCompressedBlock block : entry.CompressionBlocks)
             block.relativize(offset - entrySerializedSize);
@@ -328,7 +317,7 @@ public class Packer implements Closeable
         entry.Serialize(entryBuffer, setup.pakVersion);
 
         // Write entry
-        os.position(dataOffset).write((ByteBuffer)entryBuffer.position(0));
+        os.position(entryOffset).write((ByteBuffer)entryBuffer.position(0));
 
         // Set position to an end
         os.position(os.size());

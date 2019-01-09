@@ -6,9 +6,7 @@ import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.util.Packer;
-import eu.chakhouski.juepak.util.UE4Serializer;
 
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,6 +16,11 @@ import java.util.stream.Collectors;
 
 public class Main
 {
+    private static final String extractDirectory = "C:\\Users\\ASUS\\Desktop\\Extract";
+    private static final String packingDirectory = "C:\\Users\\ASUS\\Projects\\launcher\\ui-client\\src\\main\\java\\com\\vizor\\unreal";
+
+    private static final Path archiveFile = Paths.get("C:\\Users\\ASUS\\Desktop\\Archive.pak");
+
     public static void main(String[] args) throws Exception
     {
         FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes ->
@@ -26,37 +29,34 @@ public class Main
             System.arraycopy(decode, 0, bytes, 0, bytes.length);
         });
 
-
         // Prepare packer
         final Packer packer = Packer.builder()
                 .encryptIndex(false)
                 .encryptContent(false)
                 .compressContent(true)
                 .pakVersion(FPakInfo.PakFile_Version_RelativeChunkOffsets)
-                .savePath(Paths.get("/Users/netherwire/Desktop/Created.pak"))
                 .build();
 
-
         // Packing
-        final Path folder = Paths.get("/Volumes/Samsung/Projects/UnrealEngine/FeaturePacks");
-        final List<Path> pathsToPack = Files.walk(folder).filter(Files::isRegularFile).collect(Collectors.toList());
+        final Path folder = Paths.get(packingDirectory);
 
+        final List<Path> pathsToPack = Files.walk(folder)
+                .filter(Files::isRegularFile)
+                .collect(Collectors.toList());
+
+        // Add files to pack
         for (Path path : pathsToPack)
-        {
             packer.add(path);
-        }
-        packer.close();
 
+        packer.closeAndWrite(archiveFile);
 
         // Read (unpack)
-        try (final FPakFile fPakFile = new FPakFile("/Users/netherwire/Desktop/Created.pak"))
+        try (final FPakFile fPakFile = new FPakFile(archiveFile.toString()))
         {
             for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
             {
-                FPakEntry e = iterator.next();
-                System.out.println(iterator.toString());
-
-                iterator.extractMixed("/Users/netherwire/Desktop/Extract");
+                final FPakEntry e = iterator.next();
+                iterator.extractMixed(extractDirectory);
             }
         }
     }

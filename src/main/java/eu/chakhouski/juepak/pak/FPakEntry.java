@@ -17,7 +17,8 @@ import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @FStruct
-public class FPakEntry
+public class
+FPakEntry
 {
     @JavaDecoratorField
     private static final FPakCompressedBlock[] SharedDummyCompressionBlocks = new FPakCompressedBlock[0];

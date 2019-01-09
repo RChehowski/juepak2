@@ -95,7 +95,7 @@ public class PakCreator implements AutoCloseable
 //        pakChannel.write(b);
 //
 //        // Close stream
-//        pakStream.close();
+//        pakStream.closeAndWrite();
     }
 
     public final void addFile(Path path) throws IOException
