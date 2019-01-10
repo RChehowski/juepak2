@@ -96,8 +96,11 @@ public class PathUtils
             return null;
         }
 
+        // Quite expensive to call each time
+        final int basePathNameCount = basePath.getNameCount();
+
         // Set optimistic max matches
-        int maxMatches = basePath.getNameCount();
+        int maxMatches = basePathNameCount;
 
         // Iterate trough path finding minimal similarity
         for (int i = indexOfBasePath + 1; (i < numPaths); i++)
@@ -107,7 +110,7 @@ public class PathUtils
             {
                 if (commonRoot.equals(p.getRoot()))
                 {
-                    final int minLength = Math.min(basePath.getNameCount(), p.getNameCount());
+                    final int minLength = Math.min(basePathNameCount, p.getNameCount());
 
                     // Common root is still the same, compare parts
                     for (int j = 0; j < minLength; j++)
@@ -158,15 +161,20 @@ public class PathUtils
 
             final Path root = path.getRoot();
 
+            // Root may not exist for relative paths
             if (root != null)
             {
-                final String rootAsString = root.toString().replaceAll("\\\\", "");
-                sj.add(rootAsString);
+                // Remove backslashes (possible for windows)
+                sj.add(root.toString().replaceAll("\\\\", ""));
             }
 
-            for (int i = 0; i < path.getNameCount(); i++)
+            // Quite expensive to call each time
+            final int nameCount = path.getNameCount();
+
+            // Sequentially add names
+            for (int i = 0; i < nameCount; i++)
             {
-                sj.add(path.getName(i).toString());
+                sj.add(String.valueOf(path.getName(i)));
             }
 
             result = sj.toString();

@@ -155,7 +155,6 @@ public class Packer
             }
 
             final long indexOffset = channel.size();
-            System.out.println("indexOffset " + indexOffset);
 
             // !!! Write index
             // Write prefix
@@ -172,7 +171,6 @@ public class Packer
 
             // Determine index size
             final long indexSize = (channel.size() - indexOffset) + entriesBuffer.position();
-            System.out.println("indexSize " + indexSize);
 
             // Write info
             final FPakInfo pakInfo = new FPakInfo();
@@ -181,18 +179,13 @@ public class Packer
             pakInfo.Version = setup.pakVersion;
             pakInfo.IndexOffset = indexOffset;
             pakInfo.IndexSize = indexSize;
-            pakInfo.IndexHash = new byte[20];
             pakInfo.bEncryptedIndex = Misc.toByte(setup.encryptIndex);
-
-            System.out.println("Buf: " + entriesBuffer.toString());
             FSHA1.HashBuffer(entriesBuffer.array(), entriesBuffer.position(), pakInfo.IndexHash);
 
             pakInfo.Serialize(entriesBuffer);
 
             entriesBuffer.flip();
             channel.write(entriesBuffer);
-
-            System.out.println("CachedTotalSize " + channel.size());
         }
     }
 
@@ -324,12 +317,6 @@ public class Packer
 
         return entry;
     }
-
-
-
-
-
-
 
 
     // lazy
