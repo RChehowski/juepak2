@@ -3,37 +3,65 @@ package eu.chakhouski.juepak.util;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.StringJoiner;
 
 public class PathUtils
 {
-    public static Path findCommonPath(boolean absolutize, Iterable<Path> paths)
+    /**
+     * Finds a common paths between a set of paths.
+     * Same as {@see https://www.rosettacode.org/wiki/Find_common_directory_path}, but works with
+     * native {@link java.nio.file.Path}, not just plain {@link java.lang.String} instances.
+     *
+     * @param compareAsAbsolute True to make paths absolute before comparing them.
+     * @param paths An iterable something of paths.
+     *
+     * @return A common path (might be null if no common path found)
+     */
+    public static Path findCommonPath(final boolean compareAsAbsolute, final Iterable<Path> paths)
     {
         final List<Path> list;
         if (paths instanceof List<?>)
         {
+            // Already a list, just cast
             list = (List<Path>)paths;
         }
         else if (paths instanceof Collection<?>)
         {
+            // An unknown collection (set, deque, ...) perform a bulk add()
             list = new ArrayList<>((Collection<Path>) paths);
         }
-        else
+        else if (paths != null)
         {
+            // A plain iterable (but not null) add one-by-one
             list = new ArrayList<>();
 
             for (Path t : paths)
                 list.add(t);
         }
+        else
+        {
+            // Paths is null, set an empty list
+            list = Collections.emptyList();
+        }
 
-        return findCommonPath(absolutize, list.toArray(new Path[0]));
+        return findCommonPath(compareAsAbsolute, list.toArray(new Path[0]));
     }
 
-    public static Path findCommonPath(boolean absolutize, Path... paths)
+    /**
+     * Finds a common paths between a set of paths.
+     * Same as {@see https://www.rosettacode.org/wiki/Find_common_directory_path}, but works with
+     * native {@link java.nio.file.Path}, not just plain {@link java.lang.String} instances.
+     *
+     * @param compareAsAbsolute True to make paths absolute before comparing them.
+     * @param paths An array of paths.
+     *
+     * @return A common path (might be null if no common path found)
+     */
+    public static Path findCommonPath(final boolean compareAsAbsolute, Path... paths)
     {
-        // Quit if no paths to compare
+        // Quit if no paths to compare (paths might be null if user explicitly passed null here)
         if ((paths == null) || (paths.length == 0))
         {
             return null;
@@ -41,8 +69,8 @@ public class PathUtils
 
         final int numPaths = paths.length;
 
-        // Make absolute paths if necessary
-        for (int i = 0; absolutize && i < numPaths; i++)
+        // Make absolute paths if user choose to compare as absolute
+        for (int i = 0; compareAsAbsolute && i < numPaths; i++)
         {
             final Path p = paths[i];
             paths[i] = (p != null && !p.isAbsolute()) ? p.toAbsolutePath() : p;
@@ -122,19 +150,32 @@ public class PathUtils
      */
     public static String pathToPortableUE4String(Path path)
     {
-        final StringJoiner sj = new StringJoiner("/");
-
+        final String result;
         if (path != null)
         {
+            // Always use '/' separator, not File.separator
+            final StringJoiner sj = new StringJoiner("/");
+
             final Path root = path.getRoot();
 
             if (root != null)
-                sj.add(root.toString());
+            {
+                final String rootAsString = root.toString().replaceAll("\\\\", "");
+                sj.add(rootAsString);
+            }
 
             for (int i = 0; i < path.getNameCount(); i++)
+            {
                 sj.add(path.getName(i).toString());
+            }
+
+            result = sj.toString();
+        }
+        else
+        {
+            result = "";
         }
 
-        return sj.toString();
+        return result;
     }
 }
