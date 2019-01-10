@@ -14,10 +14,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -147,7 +147,7 @@ public class Packer
                 {
                     final long fileLength = file.length();
 
-                    final FPakEntry entry = deflateFile(fis, fileLength, channel, setup.encryptContent, 64 * 1024);
+                    final FPakEntry entry = copyCompressToPak(fis, fileLength, channel, setup.encryptContent, 64 * 1024);
                     final Path relativized = commonPath.relativize(path);
 
                     hashMap.put(PathUtils.pathToPortableUE4String(relativized), entry);
@@ -189,8 +189,10 @@ public class Packer
         }
     }
 
-    private FPakEntry deflateFile(InputStream is, final long fileLength, FileChannel os, boolean bEncrypt, int MaxCompressionBlockSize)
-            throws IOException
+    private synchronized FPakEntry copyCompressToPak(
+            InputStream is, final long fileLength,
+            SeekableByteChannel os, boolean bEncrypt,
+            int MaxCompressionBlockSize) throws IOException
     {
         final long numBlocks = (long)Math.ceil((double) fileLength / MaxCompressionBlockSize);
 
