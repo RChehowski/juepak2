@@ -1,144 +1,49 @@
 package eu.chakhouski.juepak.ue4;
 
-import eu.chakhouski.juepak.annotations.FStruct;
-import eu.chakhouski.juepak.annotations.StaticSize;
-
 import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 import static eu.chakhouski.juepak.util.Misc.TEXT;
 import static eu.chakhouski.juepak.util.Misc.checkf;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
-@SuppressWarnings("SpellCheckingInspection")
-public class FAES
+@SuppressWarnings({"WeakerAccess", "SpellCheckingInspection"})
+public final class FAES
 {
+    // A static cipher instance, all methods must vbe synchronized
     private static final Cipher AES256Cipher;
 
-    private static final int AES_KEYBITS = 256;
-    public static final int AESBlockSize = 16;
+    // UE4 uses an AES encryption with ECB approach to reduce
+    private static final String cryptoAlgorithmName = "AES";
+    private static final String cipherTransformation = cryptoAlgorithmName + "/ECB/NoPadding";
 
+    // Constants for AES
+    private static final int AES_KEYBITS = 256;
+    private static final int KEYLENGTH = AES_KEYBITS / Byte.SIZE;
+    private static final int AESBlockSize = 16;
+
+    // Buffer for decryption
     private static final byte[] EncryptionDecryptionBuffer = new byte[AESBlockSize];
 
+    static {
+        tryFixKeyLength();
 
-    private static int KEYLENGTH(int keybits) { return ((keybits) / 8); }
-
-    private static void fixKeyLength()
-    {
-        final String errorString = "Failed manually overriding key-length permissions.";
-
-        int newMaxKeyLength;
-        try
-        {
-            if ((newMaxKeyLength = Cipher.getMaxAllowedKeyLength("AES")) < 256)
-            {
-                Class<?> c = Class.forName("javax.crypto.CryptoAllPermissionCollection");
-                Constructor con = c.getDeclaredConstructor();
-                con.setAccessible(true);
-                Object allPermissionCollection = con.newInstance();
-                Field f = c.getDeclaredField("all_allowed");
-                f.setAccessible(true);
-                f.setBoolean(allPermissionCollection, true);
-
-                c = Class.forName("javax.crypto.CryptoPermissions");
-                con = c.getDeclaredConstructor();
-                con.setAccessible(true);
-                Object allPermissions = con.newInstance();
-                f = c.getDeclaredField("perms");
-                f.setAccessible(true);
-                ((Map) f.get(allPermissions)).put("*", allPermissionCollection);
-
-                c = Class.forName("javax.crypto.JceSecurityManager");
-                f = c.getDeclaredField("defaultPolicy");
-                f.setAccessible(true);
-                Field mf = Field.class.getDeclaredField("modifiers");
-                mf.setAccessible(true);
-                mf.setInt(f, f.getModifiers() & ~Modifier.FINAL);
-                f.set(null, allPermissions);
-
-                newMaxKeyLength = Cipher.getMaxAllowedKeyLength("AES");
-            }
+        try {
+            AES256Cipher = Cipher.getInstance(cipherTransformation);
         }
-        catch (Exception e)
-        {
-            throw new RuntimeException(errorString, e);
-        }
-
-        if (newMaxKeyLength < 256)
-        {
-            throw new RuntimeException(errorString); // hack failed
-        }
-    }
-
-    static
-    {
-        fixKeyLength();
-
-        try
-        {
-            // No padding because we're checking padding in UE-ported code manually
-            AES256Cipher = Cipher.getInstance("AES/ECB/NoPadding");
-        }
-        catch (NoSuchAlgorithmException | NoSuchPaddingException e)
-        {
+        catch (GeneralSecurityException e) {
             throw new RuntimeException(e);
         }
     }
 
-    /**
-     * Class representing a 256 bit AES key
-     */
-    @FStruct
-    public static class FAESKey
+    private FAES()
     {
-        @StaticSize(32)
-        public byte[] Key = new byte[32];
-
-        public FAESKey()
-        {
-            Reset();
-        }
-
-        public boolean IsValid()
-        {
-            final ByteBuffer Words = ByteBuffer.wrap(Key).order(ByteOrder.LITTLE_ENDIAN);
-            for (int Index = 0; Index < sizeof(Key) / 4; ++Index)
-            {
-                if (Words.getInt(Index) != 0)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        void Reset()
-        {
-            FMemory.Memset(Key, 0, sizeof(Key));
-        }
-    }
-
-
-    /**
-     * Encrypts a chunk of data using a specific key
-     *
-     * @param Contents the buffer to encrypt
-     * @param NumBytes the size of the buffer
-     * @param Key An FAESKey object containing the encryption key
-     */
-    public static void EncryptData(byte[] Contents, int NumBytes, FAESKey Key)
-    {
-        checkf(Key.IsValid(), TEXT("No valid encryption key specified"));
-        EncryptData(Contents, NumBytes, Key.Key, 0, sizeof(Key.Key));
+        throw new AssertionError("No " + getClass() + " instances for you");
     }
 
     /**
@@ -148,7 +53,7 @@ public class FAES
      * @param NumBytes the size of the buffer
      * @param KeyBytes a byte array that is a 32 byte multiple length
      */
-    public static void EncryptData(byte[] Contents, int NumBytes, byte[] KeyBytes)
+    public static synchronized void EncryptData(byte[] Contents, int NumBytes, byte[] KeyBytes)
     {
         EncryptData(Contents, NumBytes, KeyBytes, 0, KeyBytes.length);
     }
@@ -160,13 +65,13 @@ public class FAES
      * @param NumBytes the size of the buffer
      * @param KeyBytes a byte array that is a 32 byte multiple length
      */
-    public static void EncryptData(byte[] Contents, int NumBytes, byte[] KeyBytes, int KeyOffset, int NumKeyBytes)
+    public static synchronized void EncryptData(byte[] Contents, int NumBytes, byte[] KeyBytes, int KeyOffset, int NumKeyBytes)
     {
         checkf((NumBytes & (AESBlockSize - 1)) == 0, TEXT("NumBytes needs to be a multiple of 16 bytes"));
-        checkf(NumKeyBytes >= KEYLENGTH(AES_KEYBITS), TEXT("AES key needs to be at least %d characters"), KEYLENGTH(AES_KEYBITS));
+        checkf(NumKeyBytes >= KEYLENGTH, TEXT("AES key needs to be at least %d characters"), KEYLENGTH);
 
         //
-        final SecretKeySpec secretKeySpec = new SecretKeySpec(KeyBytes, KeyOffset, NumKeyBytes, "AES");
+        final SecretKeySpec secretKeySpec = new SecretKeySpec(KeyBytes, KeyOffset, NumKeyBytes, cryptoAlgorithmName);
         try {
             AES256Cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
 
@@ -192,22 +97,9 @@ public class FAES
      *
      * @param Contents the buffer to encrypt
      * @param NumBytes the size of the buffer
-     * @param Key a null terminated string that is a 32 byte multiple length
-     */
-    public static void DecryptData(byte[] Contents, int NumBytes, FAESKey Key)
-    {
-        checkf(Key.IsValid(), TEXT("No valid decryption key specified"));
-        DecryptData(Contents, NumBytes, Key.Key, 0, sizeof(Key.Key));
-    }
-
-    /**
-     * Decrypts a chunk of data using a specific key
-     *
-     * @param Contents the buffer to encrypt
-     * @param NumBytes the size of the buffer
      * @param KeyBytes a null terminated string that is a 32 byte multiple length
      */
-    public static void DecryptData(byte[] Contents, int NumBytes, byte[] KeyBytes)
+    public static synchronized void DecryptData(byte[] Contents, int NumBytes, byte[] KeyBytes)
     {
         DecryptData(Contents, NumBytes, KeyBytes, 0, KeyBytes.length);
     }
@@ -219,12 +111,12 @@ public class FAES
      * @param NumBytes the size of the buffer
      * @param KeyBytes a null terminated string that is a 32 byte multiple length
      */
-    public static void DecryptData(byte[] Contents, int NumBytes, byte[] KeyBytes, int KeyOffset, int NumKeyBytes)
+    public static synchronized void DecryptData(byte[] Contents, int NumBytes, byte[] KeyBytes, int KeyOffset, int NumKeyBytes)
     {
         checkf((NumBytes & (AESBlockSize - 1)) == 0, TEXT("NumBytes needs to tbe a multiple of 16 bytes"));
-        checkf(NumKeyBytes >= KEYLENGTH(AES_KEYBITS), TEXT("AES key needs to be at least %d characters"), KEYLENGTH(AES_KEYBITS));
+        checkf(NumKeyBytes >= KEYLENGTH, TEXT("AES key needs to be at least %d characters"), KEYLENGTH);
 
-        final SecretKeySpec secretKeySpec = new SecretKeySpec(KeyBytes, KeyOffset, NumKeyBytes, "AES");
+        final SecretKeySpec secretKeySpec = new SecretKeySpec(KeyBytes, KeyOffset, NumKeyBytes, cryptoAlgorithmName);
         try {
             AES256Cipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
 
@@ -242,6 +134,74 @@ public class FAES
         }
         catch (GeneralSecurityException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    // ==================== Utility methods ====================
+
+    /**
+     * Retrieves block size.
+     *
+     * @return Block size in bytes.
+     */
+    public static int getBlockSize()
+    {
+        return AESBlockSize;
+    }
+
+    /**
+     * In earlier JDK version AES key length is limited by 128 bit, but UE4 uses a
+     */
+    @SuppressWarnings("unchecked")
+    private static void tryFixKeyLength()
+    {
+        try {
+            final Class<?> classCryptoAllPermissionCollection = Class.forName("javax.crypto.CryptoAllPermissionCollection");
+            final Class<?> classCryproPermissions = Class.forName("javax.crypto.CryptoPermissions");
+            final Class<?> classJceSecurityManager = Class.forName("javax.crypto.JceSecurityManager");
+
+            final int keyLengthBefore = Cipher.getMaxAllowedKeyLength(cryptoAlgorithmName);
+            if (keyLengthBefore < AES_KEYBITS)
+            {
+                // 1.
+                final Constructor con1 = classCryptoAllPermissionCollection.getDeclaredConstructor();
+                con1.setAccessible(true);
+                final Field all_allowed = classCryptoAllPermissionCollection.getDeclaredField("all_allowed");
+                all_allowed.setAccessible(true);
+                final Object cryptoAllPermissionCollection = con1.newInstance();
+                all_allowed.setBoolean(cryptoAllPermissionCollection, true);
+
+                // 2.
+                final Constructor con2 = classCryproPermissions.getDeclaredConstructor();
+                con2.setAccessible(true);
+                Object allPermissions = con2.newInstance();
+                final Field f2 = classCryproPermissions.getDeclaredField("perms");
+                f2.setAccessible(true);
+                ((Map) f2.get(allPermissions)).put("*", cryptoAllPermissionCollection);
+
+                // 3.
+                final Field defaultPolicyField = classJceSecurityManager.getDeclaredField("defaultPolicy");
+                defaultPolicyField.setAccessible(true);
+                final Field mf = Field.class.getDeclaredField("modifiers");
+                mf.setAccessible(true);
+                mf.setInt(defaultPolicyField, defaultPolicyField.getModifiers() & ~Modifier.FINAL);
+                mf.setAccessible(false);
+                defaultPolicyField.set(null, allPermissions);
+
+                // Check whether the hack succeeded
+                final int keyLengthAfter = Cipher.getMaxAllowedKeyLength(cryptoAlgorithmName);
+                if (keyLengthAfter < AES_KEYBITS)
+                {
+                    throw new RuntimeException(String.join(System.lineSeparator(), String.join(
+                            "Failed manually overriding key-length permissions.",
+                            "Previous length: " + keyLengthBefore,
+                            "Current length : " + keyLengthAfter
+                    )));
+                }
+            }
+        }
+        catch (ReflectiveOperationException | GeneralSecurityException roe) {
+            throw new RuntimeException(roe);
         }
     }
 }

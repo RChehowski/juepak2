@@ -16,10 +16,10 @@ import java.util.stream.Collectors;
 
 public class Main
 {
-    private static final String extractDirectory = "C:\\Users\\ASUS\\Desktop\\Extract";
-    private static final String packingDirectory = "C:\\Users\\ASUS\\Projects\\launcher\\ui-client\\src\\main\\java\\com\\vizor\\unreal";
+    private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
+    private static final String packingDirectory = "/Users/netherwire/Pictures";
 
-    private static final Path archiveFile = Paths.get("C:\\Users\\ASUS\\Desktop\\Archive.pak");
+    private static final Path archiveFile = Paths.get("/Users/netherwire/Desktop/Archive.pak");
 
     public static void main(String[] args) throws Exception
     {
@@ -32,7 +32,7 @@ public class Main
         // Prepare packer
         final Packer packer = Packer.builder()
                 .encryptIndex(false)
-                .encryptContent(false)
+                .encryptContent(true)
                 .compressContent(true)
                 .pakVersion(FPakInfo.PakFile_Version_RelativeChunkOffsets)
                 .build();

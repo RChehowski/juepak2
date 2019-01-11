@@ -14,7 +14,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
@@ -160,12 +159,12 @@ public class Packer
             // Write prefix
             final ByteBuffer entriesBuffer = ByteBuffer.allocate(128 * 1024);
 
-            UE4Serializer.WriteString(entriesBuffer, "../../../");
-            UE4Serializer.WriteInt(entriesBuffer, hashMap.size());
+            UE4Serializer.Write(entriesBuffer, "../../../");
+            UE4Serializer.Write(entriesBuffer, hashMap.size());
 
             // Write entries
             hashMap.forEach((k, v) -> {
-                UE4Serializer.WriteString(entriesBuffer, k.toString());
+                UE4Serializer.Write(entriesBuffer, k.toString());
                 v.Serialize(entriesBuffer, setup.pakVersion);
             });
 
@@ -249,7 +248,7 @@ public class Packer
                 final int numBytesToWrite;
                 if (bEncrypt)
                 {
-                    numBytesToWrite = Align(numBytesDeflated, FAES.AESBlockSize);
+                    numBytesToWrite = Align(numBytesDeflated, FAES.getBlockSize());
                     FAES.EncryptData(deflateDstBuffer.array(), numBytesToWrite, SharedKeyBytes);
                 }
                 else
@@ -340,13 +339,13 @@ public class Packer
     {
         if (deflateSrcBuffer == null)
         {
-            assert n % FAES.AESBlockSize == 0;
+            assert n % FAES.getBlockSize() == 0;
 
             // @see https://stackoverflow.com/questions/23571387/whats-the-most-that-gzip-or-deflate-can-increase-a-file-size
             final long l = (long) (n + 5 * (Math.floor((double) n / 16383.0) + 1));
 
             // align size
-            final long srcBufferSize = AlignDown(n - (l - n), FAES.AESBlockSize);
+            final long srcBufferSize = AlignDown(n - (l - n), FAES.getBlockSize());
 
             deflateSrcBuffer = ByteBuffer.allocate(toInt(srcBufferSize));
         }
@@ -358,7 +357,7 @@ public class Packer
     {
         if (deflateDstBuffer == null)
         {
-            assert n % FAES.AESBlockSize == 0;
+            assert n % FAES.getBlockSize() == 0;
 
             deflateDstBuffer = ByteBuffer.allocate(n);
         }

@@ -13,17 +13,24 @@ public class Sizeof
     private static final Map<Class<?>, Integer> sizeCache = new HashMap<>();
 
     static {
+        // 1 byte
         sizeCache.put(boolean.class, Byte.BYTES);
         sizeCache.put(byte.class, Byte.BYTES);
 
+        // 2 bytes
         sizeCache.put(short.class, Short.BYTES);
         sizeCache.put(char.class, Character.BYTES);
 
+        // 4 bytes
         sizeCache.put(int.class, Integer.BYTES);
         sizeCache.put(float.class, Float.BYTES);
 
+        // 8 bytes
         sizeCache.put(long.class, Long.BYTES);
         sizeCache.put(double.class, Double.BYTES);
+
+        // 0 bytes
+        sizeCache.put(void.class, 0);
     }
 
 
@@ -56,11 +63,17 @@ public class Sizeof
 
     public static int sizeof(Object object)
     {
-        return getStructSize(object.getClass());
-    }
+        final Class<?> clazz;
 
-    public static int sizeof(Class<?> clazz)
-    {
+        if (object instanceof Class<?>)
+            clazz = (Class<?>)object;
+
+        else if (object != null)
+            clazz = object.getClass();
+
+        else
+            clazz = void.class;
+
         return getStructSize(clazz);
     }
 
@@ -74,29 +87,36 @@ public class Sizeof
         else if (clazz.isAnnotationPresent(FStruct.class))
         {
             // Mustn't have any superclasses
-            if (!Object.class.equals(clazz.getSuperclass()))
-                throw new RuntimeException("FStruct must only extend Object");
-
-            // Inspect our object
-            int size = 0;
-            for (final Field field : clazz.getDeclaredFields())
+            if (Object.class == clazz.getSuperclass())
             {
-                if (!Modifier.isStatic(field.getModifiers()))
+                int size = 0;
+                for (final Field field : clazz.getDeclaredFields())
                 {
-                    final StaticSize staticSize = field.getAnnotation(StaticSize.class);
-                    final int elementSize = getStructSize(field.getType());
+                    if (!Modifier.isStatic(field.getModifiers()))
+                    {
+                        final StaticSize staticSize = field.getAnnotation(StaticSize.class);
 
-                    if (staticSize != null)
-                        size += elementSize * staticSize.value();
-                    else
-                        size += elementSize;
+                        final int dimension;
+                        if (staticSize != null)
+                            dimension = staticSize.value();
+                        else
+                            dimension = 1;
+
+                        final int elementSize = getStructSize(field.getType());
+                        size += elementSize * dimension;
+                    }
                 }
+                return size;
             }
-            return size;
+            else
+            {
+                throw new RuntimeException("FStruct must only extend Object");
+            }
+
         }
         else
         {
-            throw new RuntimeException(clazz.getName() + " size cannot be determined");
+            throw new RuntimeException("Size of " + clazz + " cannot be determined");
         }
     }
 }

@@ -4,6 +4,7 @@ import eu.chakhouski.juepak.annotations.APIBridgeMethod;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
+import eu.chakhouski.juepak.ue4.FCoreDelegates.FPakEncryptionKeyDelegate;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
@@ -16,9 +17,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileChannel.MapMode;
+import java.nio.channels.SeekableByteChannel;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,6 +26,7 @@ import java.util.Map;
 import static eu.chakhouski.juepak.util.Misc.BOOL;
 import static eu.chakhouski.juepak.util.Misc.NULL;
 import static eu.chakhouski.juepak.util.Misc.TEXT;
+import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @SuppressWarnings("StringConcatenationInLoop")
@@ -86,28 +86,20 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         }
     }
 
-    /**
-     * Precaching
-     */
-    public static void GetPakEncryptionKey(FAES.FAESKey OutKey)
-    {
-        FCoreDelegates.FPakEncryptionKeyDelegate Delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
-        if (Delegate.IsBound())
-        {
-            Delegate.Execute(OutKey.Key);
-        }
-        else
-        {
-            FMemory.Memset(OutKey.Key, 0, sizeof(OutKey.Key));
-        }
-    }
-
     private void DecryptData(byte[] InData, int InDataSize)
     {
-//        SCOPE_SECONDS_ACCUMULATOR(STAT_PakCache_DecryptTime);
-        FAES.FAESKey Key = new FAES.FAESKey();
-        FPakFile.GetPakEncryptionKey(Key);
-        FAES.DecryptData(InData, InDataSize, Key);
+        FPakEncryptionKeyDelegate Delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
+
+        final byte[] keyBytes = new byte[20];
+        if (Delegate.IsBound())
+        {
+            Delegate.Execute(keyBytes);
+        }
+
+        FAES.DecryptData(InData, InDataSize, keyBytes);
+
+        // Nullify key bytes
+        FMemory.Memset(keyBytes, 0, keyBytes.length);
     }
 
     /**
@@ -120,18 +112,21 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         return Index;
     }
 
-    private void Initialize(FileChannel channel) throws IOException
+    private void Initialize(SeekableByteChannel channel) throws IOException
     {
         CachedTotalSize = channel.size();
 
-        final MappedByteBuffer map = channel.map(
-            MapMode.READ_ONLY,
-            CachedTotalSize - Info.GetSerializedSize(),
-            Info.GetSerializedSize()
-        );
 
-        Info.Deserialize(map.order(ByteOrder.LITTLE_ENDIAN), FPakInfo.PakFile_Version_Latest);
+        final ByteBuffer map = ByteBuffer.allocate(toInt(Info.GetSerializedSize(Info.Version)))
+                .order(ByteOrder.LITTLE_ENDIAN);
 
+        channel.position(CachedTotalSize - Info.GetSerializedSize());
+        channel.read(map);
+
+
+        map.flip();
+
+        Info.Deserialize(map, FPakInfo.PakFile_Version_Latest);
 
         if (CachedTotalSize < Info.GetSerializedSize())
         {
@@ -143,25 +138,25 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
 
 
         if (Info.Magic != FPakInfo.PakFile_Magic)
-            throw new RuntimeException("Trailing magic number " + Info.Magic + " in " + PakFilename +
+            throw new IOException("Trailing magic number " + Info.Magic + " in " + PakFilename +
             " is different than the expected one. Verify your installation.");
 
         if (!(Info.Version >= FPakInfo.PakFile_Version_Initial && Info.Version <= FPakInfo.PakFile_Version_Latest))
-            throw new RuntimeException("Invalid pak file version (" + Info.Version + ") in " + PakFilename + ". Verify your installation.");
+            throw new IOException("Invalid pak file version (" + Info.Version + ") in " + PakFilename + ". Verify your installation.");
 
         if ((Info.bEncryptedIndex == 1) && (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound()))
-            throw new RuntimeException("Index of pak file '" + PakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
+            throw new IOException("Index of pak file '" + PakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
 
         if (!(Info.IndexOffset >= 0 && Info.IndexOffset < CachedTotalSize))
-            throw new RuntimeException("Index offset for pak file '" + PakFilename + "' is invalid (" + Info.IndexOffset + ")");
+            throw new IOException("Index offset for pak file '" + PakFilename + "' is invalid (" + Info.IndexOffset + ")");
 
         if (!((Info.IndexOffset + Info.IndexSize) >= 0 && (Info.IndexOffset + Info.IndexSize) <= CachedTotalSize))
-            throw new RuntimeException("Index end offset for pak file '" + PakFilename + "' is invalid (" + Info.IndexOffset + Info.IndexSize + ")");
+            throw new IOException("Index end offset for pak file '" + PakFilename + "' is invalid (" + Info.IndexOffset + Info.IndexSize + ")");
 
         LoadIndex(channel);
     }
 
-    private void LoadIndex(FileChannel channel) throws IOException
+    private void LoadIndex(SeekableByteChannel channel) throws IOException
     {
         if (CachedTotalSize < (Info.IndexOffset + Info.IndexSize))
         {
@@ -169,12 +164,24 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         }
         else
         {
-            final ByteBuffer IndexData = ByteBuffer.allocate((int) Info.IndexSize);
-            channel.read(IndexData.order(ByteOrder.LITTLE_ENDIAN), Info.IndexOffset);
+            final ByteBuffer IndexData = ByteBuffer.allocate(toInt(Info.IndexSize))
+                    .order(ByteOrder.LITTLE_ENDIAN);
+
+            final int actualReadBytes = channel.position(Info.IndexOffset).read(IndexData);
+            if (actualReadBytes != Info.IndexSize)
+            {
+                throw new IllegalArgumentException(String.join(System.lineSeparator(), Arrays.asList(
+                    "Can not read that much index data from pak file channel",
+                    "   index offset: " + Info.IndexOffset,
+                    "   index size  : " + Info.IndexSize,
+                    "   total bytes : " + channel.size(),
+                    "   actual read : " + actualReadBytes
+                )));
+            }
 
             IndexData.position(0);
 
-            // Decrypt if necessary
+            // Decrypt in-place if necessary
             if (BOOL(Info.bEncryptedIndex))
             {
                 DecryptData(IndexData.array(), (int) Info.IndexSize);
@@ -210,7 +217,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
 
             // Read the default mount point and all entries.
             NumEntries = 0;
-            MountPoint = UE4Deserializer.ReadString(IndexData);
+            MountPoint = UE4Deserializer.Read(IndexData, String.class);
             NumEntries = UE4Deserializer.ReadInt(IndexData);
 
             MountPoint = MakeDirectoryFromPath(MountPoint);
@@ -222,7 +229,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                 // Serialize from memory.
                 final FPakEntry Entry = new FPakEntry();
                 String Filename;
-                Filename = UE4Deserializer.ReadString(IndexData);
+                Filename = UE4Deserializer.Read(IndexData, String.class);
                 Entry.Deserialize(IndexData, Info.Version);
 
                 // Add new file info.

@@ -13,7 +13,7 @@ import static java.util.Arrays.stream;
 public class StringSerializationTest
 {
     @Test
-    public void simpleTest()
+    public void simpleTest() throws Exception
     {
         final int VERY_LONG_STRING_LENGTH = 4096;
         
@@ -23,10 +23,14 @@ public class StringSerializationTest
 
         final StringBuilder veryLongRussianString = new StringBuilder(VERY_LONG_STRING_LENGTH);
         for (int i = 0; i < VERY_LONG_STRING_LENGTH; i++)
-            veryLongEnglishString.append('я');
+            veryLongRussianString.append('я');
 
+        final StringBuilder veryLongNumericString = new StringBuilder(VERY_LONG_STRING_LENGTH);
+        for (int i = 0; i < VERY_LONG_STRING_LENGTH; i++)
+            veryLongNumericString.append('1');
 
         final String[] samples = {
+            // Latin
             "hello, world",
             "HELLO, WORLD",
             "Hello, World",
@@ -34,6 +38,7 @@ public class StringSerializationTest
             "Hello, #World!",
             "Hello, @#$%^&!",
 
+            // Cyrillic
             "привет, мир",
             "ПРИВЕТ, МИР",
             "Привет, Мир",
@@ -41,6 +46,7 @@ public class StringSerializationTest
             "Привет, #Мир!",
             "Привет, @#$%^&!",
 
+            // Latin-cyrillic variations
             "hello, мир",
             "HELLO, МИР",
             "Hello, Мир",
@@ -48,8 +54,22 @@ public class StringSerializationTest
             "Hello, #Мир!",
             "Hello, @#$%^&(мир)!",
 
+            // Empty string
+            "",
+
+            // Numeric variations
+            "123",
+            "aaa123",
+            "123aaa",
+            "яяя123",
+            "123яяя",
+            "#$%123",
+            "123#$%",
+
+            // Very long strings
             veryLongEnglishString.toString(),
-            veryLongRussianString.toString()
+            veryLongRussianString.toString(),
+            veryLongNumericString.toString()
         };
 
         // Calculate a precise serialize capacity, this is also tested
@@ -61,7 +81,7 @@ public class StringSerializationTest
         final ByteBuffer buffer = ByteBuffer.allocateDirect(preciseCapacity).order(ByteOrder.LITTLE_ENDIAN);
 
         for (final String s : samples)
-            UE4Serializer.WriteString(buffer, s);
+            UE4Serializer.Write(buffer, s);
 
         // Assert the whole buffer is used
         Assert.assertEquals(buffer.position(), buffer.capacity(), "The whole buffer must be used");
@@ -70,6 +90,8 @@ public class StringSerializationTest
         buffer.rewind();
 
         for (String srcSample : samples)
-            Assert.assertEquals(UE4Deserializer.ReadString(buffer), srcSample);
+        {
+            Assert.assertEquals(UE4Deserializer.Read(buffer, String.class), srcSample);
+        }
     }
 }
