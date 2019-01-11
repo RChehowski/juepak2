@@ -35,11 +35,6 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     /** Pak filename. */
     private final String PakFilename;
 
-    public final FPakInfo GetInfo()
-    {
-        return Info;
-    }
-
     /** Pak file info (trailer). */
     public final FPakInfo Info = new FPakInfo();
     /** Mount point. */
@@ -84,6 +79,11 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             InputStream.close();
             InputStream = null;
         }
+    }
+
+    public final FPakInfo GetInfo()
+    {
+        return Info;
     }
 
     private void DecryptData(byte[] InData, int InDataSize)
@@ -299,6 +299,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
      *
      * @return 20 bytes of brief SHA1 checksum of the file.
      */
+    @SuppressWarnings("unused")
     @APIBridgeMethod
     public final byte[] BriefChecksumOfContent()
     {
@@ -311,10 +312,8 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         final ByteBuffer ItemBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
         final ByteBuffer MergeBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
 
-        for (int i = 0, length = EntriesOffsetAscending.length; i < length; i++)
+        for (final FPakEntry Entry : EntriesOffsetAscending)
         {
-            final FPakEntry Entry = EntriesOffsetAscending[i];
-
             ItemBuffer.position(0);
             ItemBuffer.put(Entry.Hash);
 

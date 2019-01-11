@@ -93,8 +93,8 @@ FPakEntry
         if (Version <= FPakInfo.PakFile_Version_Initial)
         {
             // Read a dummy long (never use it further), just for compatibility reasons
-            final long Timestamp;
-            Timestamp = UE4Deserializer.ReadLong(Ar);
+            @SuppressWarnings("unused")
+            final long Timestamp = UE4Deserializer.ReadLong(Ar);
         }
 
         Ar.get(Hash);

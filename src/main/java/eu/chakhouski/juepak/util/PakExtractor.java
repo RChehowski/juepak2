@@ -51,7 +51,7 @@ public class PakExtractor
     public synchronized static void Extract(FPakFile PakFile, FPakEntry Entry, WritableByteChannel DestChannel)
             throws IOException
     {
-        final FPakInfo PakInfo = PakFile.Info;
+        final FPakInfo PakInfo = PakFile.GetInfo();
         final FileInputStream PakInputStream = PakFile.InputStream;
 
         // Might use cached channel if any has already created, this must be stable
@@ -104,7 +104,7 @@ public class PakExtractor
             {
                 for (final FPakCompressedBlock Block : Entry.CompressionBlocks)
                 {
-                    final long BaseOffset = BOOL(PakFile.Info.HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
+                    final long BaseOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
                     final long Offset = BaseOffset + Block.CompressedStart;
                     final long BytesToRead = Block.CompressedEnd - Block.CompressedStart;
 

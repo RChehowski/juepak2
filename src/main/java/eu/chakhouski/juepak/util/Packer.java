@@ -164,7 +164,7 @@ public class Packer
 
             // Write entries
             hashMap.forEach((k, v) -> {
-                UE4Serializer.Write(entriesBuffer, k.toString());
+                UE4Serializer.Write(entriesBuffer, k);
                 v.Serialize(entriesBuffer, setup.pakVersion);
             });
 

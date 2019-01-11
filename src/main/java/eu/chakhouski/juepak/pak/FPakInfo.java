@@ -1,7 +1,6 @@
 package eu.chakhouski.juepak.pak;
 
 import eu.chakhouski.juepak.annotations.FStruct;
-import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
@@ -87,7 +86,7 @@ public class FPakInfo
      *
      * @return Serialized data size.
      */
-    public long GetSerializedSize()
+    long GetSerializedSize()
     {
         return GetSerializedSize(PakFile_Version_Latest);
     }
@@ -97,7 +96,7 @@ public class FPakInfo
      *
      * @return Serialized data size.
      */
-    public long GetSerializedSize(int InVersion)
+    long GetSerializedSize(int InVersion)
     {
         long Size = sizeof(Magic) + sizeof(Version) + sizeof(IndexOffset) + sizeof(IndexSize) + sizeof(IndexHash) + sizeof(bEncryptedIndex);
 
@@ -161,12 +160,6 @@ public class FPakInfo
         UE4Serializer.Write(b, IndexOffset);
         UE4Serializer.Write(b, IndexSize);
         UE4Serializer.Write(b, IndexHash);
-    }
-
-    @Operator("bool")
-    public Boolean operatorBOOL()
-    {
-        return false;
     }
 
     @Override

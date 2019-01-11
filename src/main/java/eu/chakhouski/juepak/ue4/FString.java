@@ -19,7 +19,7 @@ public class FString
     }
 
     /** @return Char value of Nibble */
-    public static char NibbleToTChar(byte Num)
+    private static char NibbleToTChar(byte Num)
     {
         final int IntNum = Num & 0xF;
 
@@ -115,8 +115,9 @@ public class FString
     {
         check(Count >= 0);
         int End = Start+Count;
-        Start    = FMath.Clamp( (int)Start, (int)0,     (int)Str.length() );
-        End      = FMath.Clamp( (int)End,   (int)Start, (int)Str.length() );
+        Start = FMath.Clamp(Start, 0, Str.length());
+        End   = FMath.Clamp(End,    Start, Str.length());
+
         return Str.substring(Start, End);
     }
 

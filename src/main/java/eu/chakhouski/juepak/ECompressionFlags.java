@@ -1,5 +1,6 @@
 package eu.chakhouski.juepak;
 
+@SuppressWarnings("SpellCheckingInspection")
 public class ECompressionFlags
 {
     /** No compression															*/
@@ -23,8 +24,8 @@ public class ECompressionFlags
     // Define global current platform default to current platform.
     public static int COMPRESS_Default = COMPRESS_ZLIB;
 
-    /** Compression Flag Masks **/
-    /** mask out compression type flags */
+    // Compression Flag Masks
+    // mask out compression type flags
     public static int COMPRESSION_FLAGS_TYPE_MASK = 0x0F;
 
     /** mask out compression type */

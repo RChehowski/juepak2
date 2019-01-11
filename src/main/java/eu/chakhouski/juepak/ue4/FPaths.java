@@ -31,8 +31,7 @@ public class FPaths
         int EndPos   = FindLastCharByPredicate(InPath, IsNotSlashOrBackslash) + 1;
         int StartPos = FindLastCharByPredicate(InPath, IsSlashOrBackslash, EndPos) + 1;
 
-        String Result = FString.Mid(InPath, StartPos, EndPos - StartPos);
-        return Result;
+        return FString.Mid(InPath, StartPos, EndPos - StartPos);
     }
 
     private static int FindLastCharByPredicate(String Data, Predicate<Character> Pred)
