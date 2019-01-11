@@ -14,6 +14,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import java.util.zip.Deflater;
 
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
@@ -187,6 +189,121 @@ public class Packer
             entriesBuffer.flip();
             channel.write(entriesBuffer);
         }
+    }
+
+    private static List<File> deflateFileNEW(InputStream is, boolean bEncrypt, int MaxCompressionBlockSize,
+                                             byte[] OutHashBytes, LongConsumer numBytesConsumer)
+            throws IOException
+    {
+        final int READ_BUFFER_LENGTH = 512;
+        final int WRITE_SIZE_DELTA = MaxCompressionBlockSize - READ_BUFFER_LENGTH;
+
+        final byte[] readBuffer = new byte[READ_BUFFER_LENGTH];
+        final byte[] blockBuffer = new byte[MaxCompressionBlockSize];
+
+        final List<File> tempFiles = new ArrayList<>();
+        final Deflater deflater = new Deflater();
+
+        // Nullify hash bytes
+        Arrays.fill(OutHashBytes, (byte)0);
+
+        // Reset sha1 instance
+        Sha1.reset();
+
+        try {
+//            long bytesReadTotal = 0;
+//            long bytesWrittenTotal = 0;
+
+            boolean readIsDone = false;
+            while (!readIsDone)
+            {
+                int bytesWrittenPerBlock = 0;
+                int bytesReadPerBlock = 0;
+
+                int bytesReadPerTransmission;
+                while ((bytesWrittenPerBlock < WRITE_SIZE_DELTA) && ((bytesReadPerTransmission = is.read(readBuffer)) > 0))
+                {
+                    // Update hash with raw, not deflated, not encrypted file data
+                    Sha1.update(readBuffer, 0, bytesReadPerTransmission);
+
+                    bytesReadPerBlock += bytesReadPerTransmission;
+
+                    // Invoke consumer if some
+                    if (numBytesConsumer != null)
+                        numBytesConsumer.accept(bytesReadPerTransmission);
+
+                    // Deflate until done
+                    if (!deflater.finished())
+                    {
+                        deflater.setInput(readBuffer, 0, bytesReadPerTransmission);
+                        while (!deflater.needsInput())
+                        {
+                            final int len = blockBuffer.length - bytesWrittenPerBlock;
+                            final int bytesDeflated = deflater.deflate(blockBuffer, bytesWrittenPerBlock, len, Deflater.SYNC_FLUSH);
+
+                            if (bytesDeflated > 0)
+                                bytesWrittenPerBlock += bytesDeflated;
+                        }
+                    }
+                }
+
+//                bytesReadTotal += bytesReadPerBlock;
+//                bytesWrittenTotal += bytesWrittenPerBlock;
+
+                if (bytesReadPerBlock > 0)
+                {
+                    // Create and immediately put into the set of files
+                    final File tempFile = File.createTempFile("pak_temp_", ".chunk");
+                    tempFiles.add(tempFile);
+
+                    final int sizeToWrite = bEncrypt ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesReadPerBlock;
+
+                    if (sizeToWrite > MaxCompressionBlockSize)
+                        throw new IllegalStateException("Too huge block: " + sizeToWrite + " bytes, allowed: " + MaxCompressionBlockSize);
+
+                    // Maybe user desired to encrypt data?
+                    if (bEncrypt)
+                    {
+                        FAES.EncryptData(blockBuffer, sizeToWrite, SharedKeyBytes);
+                    }
+
+                    // Finally, write the data
+                    try (final OutputStream fis = new FileOutputStream(tempFile))
+                    {
+                        fis.write(blockBuffer, 0, sizeToWrite);
+                    }
+                }
+                else
+                {
+                    readIsDone = true;
+                }
+            }
+
+            // Compute final SHA1
+            Sha1.digest(OutHashBytes);
+
+
+//            final float l = ((bytesReadTotal - bytesWrittenTotal) / (float)bytesReadTotal) * 100.0f;
+//
+//            System.out.println(String.join(System.lineSeparator(),
+//                "Compressing done.",
+//                    "Bytes read    : " + bytesReadTotal,
+//                    "Bytes written : " + bytesWrittenTotal,
+//                    "Size " + ((l < 0) ? "in" : "de") + "creased: " + Math.abs((int)l) + "%"
+//            ));
+        }
+        catch (RuntimeException | IOException e)
+        {
+            for (File tempFile : tempFiles)
+                tempFile.delete();
+
+            tempFiles.clear();
+
+            // Rethrow
+            throw e;
+        }
+
+        return tempFiles;
     }
 
     private synchronized FPakEntry copyCompressToPak(

@@ -1,6 +1,5 @@
 package eu.chakhouski.juepak.util;
 
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -19,6 +18,7 @@ import static java.util.Arrays.asList;
 
 public class UE4Deserializer
 {
+    // PRIMITIVE TYPES
     // 1 byte
     public static boolean ReadBoolean(ByteBuffer b)
     {
@@ -63,53 +63,52 @@ public class UE4Deserializer
         return b.order(ByteOrder.LITTLE_ENDIAN).getDouble();
     }
 
-
-    public static <T> T[] ReadArrayOfStructures(ByteBuffer b, Class<T> elementType)
+    /**
+     * Read a string from byte array in UE4-friendly way.
+     *
+     * @param b Byte buffer to read from.
+     * @return A decoded string.
+     */
+    private static String ReadString(ByteBuffer b)
     {
-        // Read number of elements to deserialize
-        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+        // Ensure order is little endian
+        b.order(ByteOrder.LITTLE_ENDIAN);
 
-        @SuppressWarnings("unchecked")
-        final T[] array = (T[])Array.newInstance(elementType, NumElements);
+        // Read string length from the buffer
+        int SaveNum = ReadInt(b);
 
-        try {
-            final Constructor<T> defaultConstructor = elementType.getConstructor();
+        // NEGATIVE length means the string is coded in UTF_16LE
+        // POSITIVE length means the string is coded in
+        boolean LoadUCS2Char = SaveNum < 0;
+        SaveNum = Math.abs(SaveNum);
 
-            for (int i = 0; i < NumElements; i++)
-            {
-                final T item = defaultConstructor.newInstance();
-                if (item instanceof UEDeserializable)
-                {
-                    try {
-                        ((UEDeserializable) item).Deserialize(b);
-                    }
-                    catch (BufferUnderflowException | BufferOverflowException be) {
-                        // Print buffer info
-                        System.err.println("Buffer exception caused: " + b.toString());
+        // Retrieve decode charset
+        final Charset charset = LoadUCS2Char ? StandardCharsets.UTF_16LE : StandardCharsets.US_ASCII;
+        final int BytesPerCharacter = LoadUCS2Char ? 2 : 1;
 
-                        // Rethrow exception, it is fatal, unfortunately :C
-                        throw be;
-                    }
-                }
-                else
-                {
-                    throw new IllegalArgumentException(join(lineSeparator(), asList(
-                        "Unsupported element class",
-                        "   Expected: Subclass of " + UEDeserializable.class,
-                        "   Actual: " + elementType
-                    )));
-                }
+        // And this is my adaptation, we need to increase a number of bytes 2 times
+        final int NumBytes = SaveNum * BytesPerCharacter;
 
-                array[i] = item;
-            }
-        }
-        catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+        final byte[] StrBytes = new byte[NumBytes];
+        b.get(StrBytes);
+
+        // Compute length, stripping zero characters
+        int NumBytesToDecode = NumBytes;
+
+        boolean ZeroBytesAhead = true;
+        for (int i = SaveNum - 1; ZeroBytesAhead && (i >= 0); --i)
+        {
+            for (int j = 0; ZeroBytesAhead && (j < BytesPerCharacter); j++)
+                ZeroBytesAhead = StrBytes[(i * BytesPerCharacter) + j] == (byte) 0;
+
+            NumBytesToDecode -= toInt(ZeroBytesAhead) * BytesPerCharacter;
         }
 
-        return array;
+        // Finally, decode the string
+        return new String(StrBytes, 0, NumBytesToDecode, charset);
     }
 
+    // ARRAY TYPES
     // 1 byte per element
     public static boolean[] ReadArrayOfBooleans(ByteBuffer b)
     {
@@ -207,7 +206,60 @@ public class UE4Deserializer
         return array;
     }
 
-    public static <T> T Read(ByteBuffer b, Class<T> clazz) throws IOException
+    public static <T> T[] ReadArrayOfStructures(ByteBuffer b, Class<T> elementType)
+    {
+        // Read number of elements to deserialize
+        final int NumElements = checkDeserializeArraySize(ReadInt(b));
+
+        @SuppressWarnings("unchecked")
+        final T[] array = (T[])Array.newInstance(elementType, NumElements);
+
+        try {
+            final Constructor<T> defaultConstructor = elementType.getConstructor();
+
+            for (int i = 0; i < NumElements; i++)
+            {
+                final T item = defaultConstructor.newInstance();
+                if (item instanceof UEDeserializable)
+                {
+                    try {
+                        ((UEDeserializable) item).Deserialize(b);
+                    }
+                    catch (BufferUnderflowException | BufferOverflowException be) {
+                        // Print buffer info
+                        System.err.println("Buffer exception caused: " + b.toString());
+
+                        // Rethrow exception, it is fatal, unfortunately :C
+                        throw be;
+                    }
+                }
+                else
+                {
+                    throw new IllegalArgumentException(join(lineSeparator(), asList(
+                            "Unsupported element class",
+                            "   Expected: Subclass of " + UEDeserializable.class,
+                            "   Actual: " + elementType
+                                                                                   )));
+                }
+
+                array[i] = item;
+            }
+        }
+        catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+
+        return array;
+    }
+
+    /**
+     * A generic read method.
+     *
+     * @param b Buffer to read from.
+     * @param clazz A class to read.
+     * @return Class instance.
+     */
+    public static <T> T Read(ByteBuffer b, Class<T> clazz)
     {
         if (clazz.isArray())
         {
@@ -281,7 +333,7 @@ public class UE4Deserializer
                 noArgConstructor = clazz.getConstructor();
             }
             catch (NoSuchMethodException e) {
-                throw new IOException("Class " + clazz.getName() + " should have a no-argument constructor to be read");
+                throw new RuntimeException("Class " + clazz.getName() + " should have a no-argument constructor to be read");
             }
 
             // Create an instance of class
@@ -290,10 +342,10 @@ public class UE4Deserializer
                 instance = noArgConstructor.newInstance();
             }
             catch (IllegalAccessException e) {
-                throw new IOException("A no-argument constructor of " + clazz.getName() + " must be public (accessible)");
+                throw new RuntimeException("A no-argument constructor of " + clazz.getName() + " must be public (accessible)");
             }
             catch (InstantiationException | InvocationTargetException e) {
-                throw new IOException("Unable to instantiate " + clazz.getName() + ": " + e.getMessage());
+                throw new RuntimeException("Unable to instantiate " + clazz.getName() + ": " + e.getMessage());
             }
 
             // Deserialize an instance
@@ -356,52 +408,6 @@ public class UE4Deserializer
             return ReadArrayOfStructures(b, elementType);
         }
     }
-
-    /**
-     * Read a string from byte array in UE4-friendly way.
-     *
-     * @param b Byte buffer to read from.
-     * @return A decoded string.
-     */
-    private static String ReadString(ByteBuffer b)
-    {
-        // Ensure order is little endian
-        b.order(ByteOrder.LITTLE_ENDIAN);
-
-        // Read string length from the buffer
-        int SaveNum = ReadInt(b);
-
-        // NEGATIVE length means the string is coded in UTF_16LE
-        // POSITIVE length means the string is coded in
-        boolean LoadUCS2Char = SaveNum < 0;
-        SaveNum = Math.abs(SaveNum);
-
-        // Retrieve decode charset
-        final Charset charset = LoadUCS2Char ? StandardCharsets.UTF_16LE : StandardCharsets.US_ASCII;
-        final int BytesPerCharacter = LoadUCS2Char ? 2 : 1;
-
-        // And this is my adaptation, we need to increase a number of bytes 2 times
-        final int NumBytes = SaveNum * BytesPerCharacter;
-
-        final byte[] StrBytes = new byte[NumBytes];
-        b.get(StrBytes);
-
-        // Compute length, stripping zero characters
-        int NumBytesToDecode = NumBytes;
-
-        boolean ZeroBytesAhead = true;
-        for (int i = SaveNum - 1; ZeroBytesAhead && (i >= 0); --i)
-        {
-            for (int j = 0; ZeroBytesAhead && (j < BytesPerCharacter); j++)
-                ZeroBytesAhead = StrBytes[(i * BytesPerCharacter) + j] == (byte) 0;
-
-            NumBytesToDecode -= toInt(ZeroBytesAhead) * BytesPerCharacter;
-        }
-
-        // Finally, decode the string
-        return new String(StrBytes, 0, NumBytesToDecode, charset);
-    }
-
 
     private static int checkDeserializeArraySize(int NumElements)
     {
