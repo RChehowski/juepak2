@@ -4,6 +4,7 @@ import java.security.DigestException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+@SuppressWarnings("SpellCheckingInspection")
 public class FSHA1
 {
     private static final MessageDigest Sha1;

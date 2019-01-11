@@ -1,18 +1,15 @@
 package eu.chakhouski.juepak.util;
 
-import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CoderResult;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
 
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
-import static java.lang.String.join;
-import static java.lang.System.lineSeparator;
-import static java.util.Arrays.asList;
 
 public class UE4Serializer
 {
@@ -51,7 +48,7 @@ public class UE4Serializer
         return length;
     }
 
-    public static void WriteByte(ByteBuffer b, byte value)
+    public static void Write(ByteBuffer b, byte value)
     {
         // Setup byte order
         b.order(ByteOrder.LITTLE_ENDIAN);
@@ -60,7 +57,7 @@ public class UE4Serializer
         b.put(value);
     }
 
-    public static void WriteInt(ByteBuffer b, int value)
+    public static void Write(ByteBuffer b, int value)
     {
         // Setup byte order
         b.order(ByteOrder.LITTLE_ENDIAN);
@@ -69,7 +66,7 @@ public class UE4Serializer
         b.putInt(value);
     }
 
-    public static void WriteLong(ByteBuffer b, long value)
+    public static void Write(ByteBuffer b, long value)
     {
         // Setup byte order
         b.order(ByteOrder.LITTLE_ENDIAN);
@@ -78,7 +75,7 @@ public class UE4Serializer
         b.putLong(value);
     }
 
-    public static void WriteString(ByteBuffer b, String value)
+    public static void Write(ByteBuffer b, String value)
     {
         // Setup byte order
         b.order(ByteOrder.LITTLE_ENDIAN);
@@ -125,6 +122,37 @@ public class UE4Serializer
         }
     }
 
+    public static void Write(ByteBuffer b, Collection<? extends UESerializable> items)
+    {
+        if (items != null)
+        {
+            b.order(ByteOrder.LITTLE_ENDIAN);
+
+            // Serialize array size
+            b.putInt(items.size());
+
+            for (final UESerializable item : items)
+            {
+                if (item != null)
+                    item.Serialize(b);
+            }
+        }
+    }
+
+    public static void Write(ByteBuffer b, UESerializable... items)
+    {
+        Write(b, Arrays.asList(items));
+    }
+
+    public static void Write(ByteBuffer b, byte... bytes)
+    {
+        if (bytes != null)
+        {
+            b.order(ByteOrder.LITTLE_ENDIAN);
+            b.put(bytes);
+        }
+    }
+
     private static boolean doEncodeAndWrite(CharsetEncoder encoder, ByteBuffer b, String s)
     {
         final int initialPosition = b.position();
@@ -157,41 +185,5 @@ public class UE4Serializer
         }
 
         return true;
-    }
-
-    @SuppressWarnings("ForLoopReplaceableByForEach")
-    public static void WriteStructArray(ByteBuffer b, Object[] array)
-    {
-        b.order(ByteOrder.LITTLE_ENDIAN);
-
-        // Serialize array size
-        b.putInt(array.length);
-
-        for (int i = 0, length = array.length; i < length; i++)
-        {
-            final Object item = array[i];
-
-            if (item instanceof UESerializable)
-            {
-                try {
-                    ((UESerializable) item).Serialize(b);
-                }
-                catch (BufferUnderflowException | BufferOverflowException be) {
-                    // Print buffer info
-                    System.err.println("Buffer exception caused: " + b.toString());
-
-                    // Rethrow exception, it is fatal, unfortunately :C
-                    throw be;
-                }
-            }
-            else
-            {
-                throw new IllegalArgumentException(join(lineSeparator(), asList(
-                    "Unsupported element class",
-                    "   Expected: Subclass of " + UESerializable.class,
-                    "   Actual: " + item.getClass()
-                )));
-            }
-        }
     }
 }

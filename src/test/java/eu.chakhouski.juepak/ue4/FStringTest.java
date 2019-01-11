@@ -5,8 +5,9 @@ import org.junit.Test;
 
 public class FStringTest
 {
+    @SuppressWarnings("SpellCheckingInspection")
     @Test
-    public void StrnicmpTest()
+    public void StrCompareTest()
     {
         final String a = "ABCDEFG";
         final String b = "ABCAEFG";

@@ -157,7 +157,7 @@ public class PakCreator implements AutoCloseable
                 final int numBytesToWrite;
                 if (bEncrypt)
                 {
-                    numBytesToWrite = Align(numBytesDeflated, FAES.AESBlockSize);
+                    numBytesToWrite = Align(numBytesDeflated, FAES.getBlockSize());
                     FAES.EncryptData(deflateDstBuffer.array(), numBytesToWrite, SharedKeyBytes);
                 }
                 else
@@ -240,8 +240,8 @@ public class PakCreator implements AutoCloseable
 
         // TODO: Replace mock data
         final ByteBuffer map = ByteBuffer.allocate(100);
-        UE4Serializer.WriteString(map, "../../../");
-        UE4Serializer.WriteInt(map, pakEntries.size());
+        UE4Serializer.Write(map, "../../../");
+        UE4Serializer.Write(map, pakEntries.size());
         map.flip();
         Sha1.update(map.array(), 0, map.limit());
 
@@ -255,7 +255,7 @@ public class PakCreator implements AutoCloseable
         }
 
         // Allocate initial buffer (it might be re-allocated during algorithm progression)
-        ByteBuffer buffer = ByteBuffer.allocate(1024 * FAES.AESBlockSize).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.allocate(1024 * FAES.getBlockSize()).order(ByteOrder.LITTLE_ENDIAN);
 
         FPakEntry cachedPakEntry = null;
         for (Iterator<FPakEntry> iterator = pakEntries.iterator(); iterator.hasNext(); )
@@ -276,10 +276,10 @@ public class PakCreator implements AutoCloseable
                 {
                     if (numSerializedEntriesPerLoop == 0)
                     {
-                        final int newCap = encryptIndex ? Align(toInt(serializedSize), FAES.AESBlockSize) : toInt(serializedSize);
+                        final int newCap = encryptIndex ? Align(toInt(serializedSize), FAES.getBlockSize()) : toInt(serializedSize);
 
                         System.err.println("Insufficient buffer capacity to fit " + serializedSize + " bytes: " + buffer.capacity()
-                            + " new: " + newCap + (encryptIndex ? " (aligned by " + FAES.AESBlockSize + ")" : ""));
+                            + " new: " + newCap + (encryptIndex ? " (aligned by " + FAES.getBlockSize() + ")" : ""));
 
                         buffer = ByteBuffer.allocate(newCap).order(ByteOrder.LITTLE_ENDIAN);
                     }
@@ -301,7 +301,7 @@ public class PakCreator implements AutoCloseable
             // Encrypt part if it should be encrypted
             if (encryptIndex)
             {
-                final int alignedPartSize = Align(buffer.limit(), FAES.AESBlockSize);
+                final int alignedPartSize = Align(buffer.limit(), FAES.getBlockSize());
 
                 // Check capacity
                 if (alignedPartSize > buffer.capacity())
@@ -359,13 +359,13 @@ public class PakCreator implements AutoCloseable
     {
         if (deflateSrcBuffer == null)
         {
-            assert n % FAES.AESBlockSize == 0;
+            assert n % FAES.getBlockSize() == 0;
 
             // @see https://stackoverflow.com/questions/23571387/whats-the-most-that-gzip-or-deflate-can-increase-a-file-size
             final long l = (long) (n + 5 * (Math.floor((double) n / 16383.0) + 1));
 
             // align size
-            final long srcBufferSize = AlignDown(n - (l - n), FAES.AESBlockSize);
+            final long srcBufferSize = AlignDown(n - (l - n), FAES.getBlockSize());
 
             deflateSrcBuffer = ByteBuffer.allocate(toInt(srcBufferSize));
         }
@@ -377,7 +377,7 @@ public class PakCreator implements AutoCloseable
     {
         if (deflateDstBuffer == null)
         {
-            assert n % FAES.AESBlockSize == 0;
+            assert n % FAES.getBlockSize() == 0;
 
             deflateDstBuffer = ByteBuffer.allocate(n);
         }

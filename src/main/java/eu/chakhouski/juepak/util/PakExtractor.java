@@ -20,8 +20,10 @@ import java.util.Arrays;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import static eu.chakhouski.juepak.ECompressionFlags.StaticToString;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
 import static eu.chakhouski.juepak.util.Misc.BOOL;
+import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 public class PakExtractor
@@ -34,7 +36,7 @@ public class PakExtractor
     /**
      * Key bytes must be nullified when decryption is done.
      */
-    private static final byte[] SharedKeyBytes = new byte[32];
+    private static final byte[] sharedKeyBytes = new byte[32];
 
     /**
      * Inflater is being used to decompress ZLIB-compressed blocks
@@ -42,14 +44,14 @@ public class PakExtractor
     private static final Inflater inflater = new Inflater();
 
     //
-    private static final ByteBuffer rawBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize);
-    private static final ByteBuffer inflateBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize * 4);
+    private static final ByteBuffer srcBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize);
+    private static final ByteBuffer dstBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize);
 
 
     public synchronized static void Extract(FPakFile PakFile, FPakEntry Entry, WritableByteChannel DestChannel)
             throws IOException
     {
-        final FPakInfo PakInfo = PakFile.Info;
+        final FPakInfo PakInfo = PakFile.GetInfo();
         final FileInputStream PakInputStream = PakFile.InputStream;
 
         // Might use cached channel if any has already created, this must be stable
@@ -75,8 +77,11 @@ public class PakExtractor
 
         // Acquire key if entry is encrypted to save resources
         if (bEntryIsEncrypted)
-            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(SharedKeyBytes);
+        {
+            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
+        }
 
+        // Choose compression method and extract
         switch (Entry.CompressionMethod)
         {
             case ECompressionFlags.COMPRESS_None:
@@ -88,7 +93,7 @@ public class PakExtractor
                 {
                     final long BytesToRead = Math.min(FPakInfo.MaxChunkDataSize, BytesRemaining);
 
-                    ExtractBlock(SourceChannel, DestChannel, Offset, (int)BytesToRead, bEntryIsEncrypted, false);
+                    ExtractBlock(SourceChannel, DestChannel, Offset, toInt(BytesToRead), bEntryIsEncrypted, false);
 
                     Offset += BytesToRead;
                     BytesRemaining -= BytesToRead;
@@ -97,79 +102,81 @@ public class PakExtractor
             }
             case ECompressionFlags.COMPRESS_ZLIB:
             {
-                final FPakCompressedBlock[] CompressionBlocks = Entry.CompressionBlocks;
-                final int NumCompressionBlocks = CompressionBlocks.length;
-
-                for (int i = 0; i < NumCompressionBlocks; i++)
+                for (final FPakCompressedBlock Block : Entry.CompressionBlocks)
                 {
-                    final FPakCompressedBlock Block = CompressionBlocks[i];
-
-                    final long BaseOffset = BOOL(PakFile.Info.HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
+                    final long BaseOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
                     final long Offset = BaseOffset + Block.CompressedStart;
                     final long BytesToRead = Block.CompressedEnd - Block.CompressedStart;
 
-                    ExtractBlock(SourceChannel, DestChannel, Offset, (int)BytesToRead, bEntryIsEncrypted, true);
+                    ExtractBlock(SourceChannel, DestChannel, Offset, (int) BytesToRead, bEntryIsEncrypted, true);
                 }
                 break;
             }
             default:
             {
-                final String compressionMethodName = ECompressionFlags.StaticToString(Entry.CompressionMethod);
-                throw new RuntimeException("Unsupported compression: " + compressionMethodName);
+                throw new IOException("Unsupported compression method: " + StaticToString(Entry.CompressionMethod));
             }
         }
 
         // Nullify key bytes if node was encrypted
         if (bEntryIsEncrypted)
         {
-            FMemory.Memset(SharedKeyBytes, 0, sizeof(SharedKeyBytes));
+            FMemory.Memset(sharedKeyBytes, 0, sizeof(sharedKeyBytes));
         }
     }
 
-    private static void ExtractBlock(SeekableByteChannel SourceChannel, WritableByteChannel OutChannel,
+    private static void ExtractBlock(SeekableByteChannel srcChannel, WritableByteChannel dstChannel,
                                      final long BlockOffset, final int BlockSize,
                                      final boolean isEncrypted, final boolean isCompressed)
             throws IOException
     {
         // Check block size
-        if (BlockSize < 0 || BlockSize > rawBuffer.capacity())
+        if (BlockSize < 0 || BlockSize > srcBuffer.capacity())
         {
-            throw new IllegalArgumentException("Illegal block size: " + BlockSize + ", must be within 0.." + rawBuffer.capacity());
+            throw new IOException("Illegal block size: " + BlockSize + ", must be within 0.." + srcBuffer.capacity());
         }
 
         // Rewind buffer and set limit
-        rawBuffer.position(0).limit(isEncrypted ? Align(BlockSize, FAES.AESBlockSize) : BlockSize);
+        srcBuffer.position(0);
+        srcBuffer.limit(isEncrypted ? Align(BlockSize, FAES.getBlockSize()) : BlockSize);
 
         // Read data
-        SourceChannel.position(BlockOffset);
-        SourceChannel.read(rawBuffer);
+        srcChannel.position(BlockOffset);
+        srcChannel.read(srcBuffer);
 
-        // Decrypt data if necessary, SharedKeyBytes must be already acquired if entry is encrypted
+        // Cache arrays to reduce
+        final byte[] srcBufferArray = srcBuffer.array();
+        final byte[] dstBufferArray = dstBuffer.array();
+
+        // Decrypt data if necessary, sharedKeyBytes must be already acquired if entry is encrypted
         if (isEncrypted)
-        {
-            FAES.DecryptData(rawBuffer.array(), rawBuffer.limit(), SharedKeyBytes);
-        }
+            FAES.DecryptData(srcBufferArray, srcBuffer.limit(), sharedKeyBytes);
 
         // Decompress or just write
         if (isCompressed)
         {
             inflater.reset();
-            inflater.setInput(rawBuffer.array(), 0, rawBuffer.limit());
+            inflater.setInput(srcBufferArray, 0, srcBuffer.limit());
 
+            // Read until inflater is finished
             while (!inflater.finished())
             {
                 try {
-                    final int bytesInflated = inflater.inflate(inflateBuffer.array());
-                    OutChannel.write((ByteBuffer) inflateBuffer.position(0).limit(bytesInflated));
+                    final int bytesInflated = inflater.inflate(dstBufferArray);
+
+                    dstBuffer.position(0);
+                    dstBuffer.limit(bytesInflated);
+
+                    dstChannel.write(dstBuffer);
                 }
                 catch (DataFormatException e) {
-                    throw new RuntimeException(e);
+                    throw new IOException("Inflater data format exception detected: " + e);
                 }
             }
         }
         else
         {
-            OutChannel.write((ByteBuffer) rawBuffer.position(0).limit(BlockSize));
+            dstChannel.write((ByteBuffer) srcBuffer.position(0).limit(BlockSize));
         }
     }
 }

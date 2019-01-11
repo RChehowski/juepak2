@@ -92,8 +92,9 @@ FPakEntry
 
         if (Version <= FPakInfo.PakFile_Version_Initial)
         {
-            final long Timestamp;
-            Timestamp = UE4Deserializer.ReadLong(Ar);
+            // Read a dummy long (never use it further), just for compatibility reasons
+            @SuppressWarnings("unused")
+            final long Timestamp = UE4Deserializer.ReadLong(Ar);
         }
 
         Ar.get(Hash);
@@ -102,7 +103,7 @@ FPakEntry
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                CompressionBlocks = UE4Deserializer.ReadStructArray(Ar, FPakCompressedBlock.class);
+                CompressionBlocks = UE4Deserializer.ReadArrayOfStructures(Ar, FPakCompressedBlock.class);
             }
 
             Flags = Ar.get();
@@ -112,27 +113,26 @@ FPakEntry
 
     public void Serialize(ByteBuffer Ar, int Version)
     {
-        Ar.putLong(Offset);
-        Ar.putLong(Size);
-        Ar.putLong(UncompressedSize);
-        Ar.putInt(CompressionMethod);
-
-        Ar.put(Hash);
+        UE4Serializer.Write(Ar, Offset);
+        UE4Serializer.Write(Ar, Size);
+        UE4Serializer.Write(Ar, UncompressedSize);
+        UE4Serializer.Write(Ar, CompressionMethod);
+        UE4Serializer.Write(Ar, Hash);
 
         if (Version <= FPakInfo.PakFile_Version_Initial)
         {
-            Ar.putLong(0);
+            UE4Serializer.Write(Ar, (long)0);
         }
 
         if (Version >= FPakInfo.PakFile_Version_CompressionEncryption)
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                UE4Serializer.WriteStructArray(Ar, CompressionBlocks);
+                UE4Serializer.Write(Ar, CompressionBlocks);
             }
 
-            Ar.put(Flags);
-            Ar.putInt(CompressionBlockSize);
+            UE4Serializer.Write(Ar, Flags);
+            UE4Serializer.Write(Ar, CompressionBlockSize);
         }
     }
 

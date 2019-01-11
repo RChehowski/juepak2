@@ -1,7 +1,6 @@
 package eu.chakhouski.juepak.pak;
 
 import eu.chakhouski.juepak.annotations.FStruct;
-import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
@@ -87,7 +86,7 @@ public class FPakInfo
      *
      * @return Serialized data size.
      */
-    public long GetSerializedSize()
+    long GetSerializedSize()
     {
         return GetSerializedSize(PakFile_Version_Latest);
     }
@@ -97,10 +96,15 @@ public class FPakInfo
      *
      * @return Serialized data size.
      */
-    public long GetSerializedSize(int InVersion)
+    long GetSerializedSize(int InVersion)
     {
         long Size = sizeof(Magic) + sizeof(Version) + sizeof(IndexOffset) + sizeof(IndexSize) + sizeof(IndexHash) + sizeof(bEncryptedIndex);
-        if (InVersion >= PakFile_Version_EncryptionKeyGuid) Size += sizeof(EncryptionKeyGuid);
+
+        if (InVersion >= PakFile_Version_EncryptionKeyGuid)
+        {
+            Size += sizeof(EncryptionKeyGuid);
+        }
+
         return Size;
     }
 
@@ -150,20 +154,12 @@ public class FPakInfo
             EncryptionKeyGuid.Serialize(b);
         }
 
-        // TODO: Not sure about it
-        UE4Serializer.WriteByte(b, bEncryptedIndex);
-        UE4Serializer.WriteInt(b, Magic);
-        UE4Serializer.WriteInt(b, Version);
-        UE4Serializer.WriteLong(b, IndexOffset);
-        UE4Serializer.WriteLong(b, IndexSize);
-
-        b.put(IndexHash);
-    }
-
-    @Operator("bool")
-    public Boolean operatorBOOL()
-    {
-        return false;
+        UE4Serializer.Write(b, bEncryptedIndex);
+        UE4Serializer.Write(b, Magic);
+        UE4Serializer.Write(b, Version);
+        UE4Serializer.Write(b, IndexOffset);
+        UE4Serializer.Write(b, IndexSize);
+        UE4Serializer.Write(b, IndexHash);
     }
 
     @Override
