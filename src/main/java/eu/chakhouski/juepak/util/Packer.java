@@ -76,7 +76,7 @@ public class Packer
     /**
      * Key bytes must be nullified when decryption is done.
      */
-    private static final byte[] SharedKeyBytes = new byte[32];
+    private final byte[] SharedKeyBytes = new byte[32];
 
     /**
      * Shared deflate state machine
@@ -381,15 +381,12 @@ public class Packer
         e.SetDeleteRecord(false);
         e.SetEncrypted(bEncrypt);
 
-        // Relativize compression blocks
-        final FPakCompressedBlock[] compressionBlocks = e.CompressionBlocks;
-
         final long baseOffset = (setup.pakVersion >= FPakInfo.PakFile_Version_RelativeChunkOffsets) ? 0 : beginPosition;
 
         final long pakEntrySize = e.GetSerializedSize(setup.pakVersion);
         long relativeChunkOffset = pakEntrySize;
 
-        for (int i = 0; i < compressionBlocks.length; i++)
+        for (int i = 0; i < e.CompressionBlocks.length; i++)
         {
             final File tempFile = compressedTempFiles.get(i);
 
@@ -397,7 +394,7 @@ public class Packer
             final long chunkLength = tempFile.length();
 
             // Store in array
-            compressionBlocks[i] = new FPakCompressedBlock(chunkStart, chunkStart + chunkLength);
+            e.CompressionBlocks[i] = new FPakCompressedBlock(chunkStart, chunkStart + chunkLength);
 
             // Advance a relative offset
             relativeChunkOffset += chunkLength;
