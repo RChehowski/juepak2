@@ -24,9 +24,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -113,8 +113,8 @@ public class Packer
     // Packer setup
     private final PackerSetup setup;
 
-    // Raw paths to add (uniqueness guaranteed)
-    private final Set<Path> paths = new HashSet<>();
+    // Raw paths to add (uniqueness and order guaranteed)
+    private final Set<Path> paths = new LinkedHashSet<>();
 
 
 
