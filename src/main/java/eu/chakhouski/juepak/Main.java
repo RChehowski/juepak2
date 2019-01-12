@@ -7,7 +7,6 @@ import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.util.Packer;
 
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,8 +34,8 @@ public class Main
 
         // Prepare packer
         final Packer packer = Packer.builder()
-                .encryptIndex(false)
-                .encryptContent(true)
+                .encryptIndex(true)
+                .encryptContent(false)
                 .compressContent(true)
                 .pakVersion(FPakInfo.PakFile_Version_RelativeChunkOffsets)
                 .build();

@@ -20,44 +20,32 @@ public class FPakCompressedBlock implements UESerializable, UEDeserializable
     /** Offset of the end of a compression block. This may not align completely with the start of the next block. Offset is absolute. */
     public long CompressedEnd;
 
+
+    @SuppressWarnings("unused")
+    public FPakCompressedBlock()
+    {
+        // For de-serializing purposes
+    }
+
+    @JavaDecoratorMethod
+    public FPakCompressedBlock(long compressedStart, long compressedEnd)
+    {
+        CompressedStart = compressedStart;
+        CompressedEnd = compressedEnd;
+    }
+
     @Operator("==")
-    public boolean operatorEQ (FPakCompressedBlock B)
+    private boolean operatorEQ (FPakCompressedBlock B)
     {
         return CompressedStart == B.CompressedStart && CompressedEnd == B.CompressedEnd;
     }
 
     @Operator("!=")
-    public boolean operatorNEQ (FPakCompressedBlock B)
+    private boolean operatorNEQ (FPakCompressedBlock B)
     {
         return !(this.operatorEQ(B));
     }
 
-
-    // #region: decorator methods
-    @JavaDecoratorMethod
-    public void relativize(long Offset)
-    {
-        // calculate start
-        final long RelativeStart = CompressedStart - Offset;
-        if (RelativeStart < 0)
-        {
-            throw new IllegalArgumentException("Cannot relativize CompressedStart " + CompressedStart + " with " +
-                Offset + ", because result " + RelativeStart + " is negative");
-        }
-
-        CompressedStart = RelativeStart;
-
-
-        // calculate end
-        final long RelativeEnd = CompressedEnd - Offset;
-        if (RelativeEnd < 0)
-        {
-            throw new IllegalArgumentException("Cannot relativize CompressedEnd " + CompressedEnd + " with " +
-                Offset + ", because result " + RelativeEnd + " is negative");
-        }
-
-        CompressedEnd -= Offset;
-    }
 
     @Override
     @JavaDecoratorMethod

@@ -86,7 +86,7 @@ public class FPakInfo
      *
      * @return Serialized data size.
      */
-    long GetSerializedSize()
+    public long GetSerializedSize()
     {
         return GetSerializedSize(PakFile_Version_Latest);
     }
@@ -96,7 +96,7 @@ public class FPakInfo
      *
      * @return Serialized data size.
      */
-    long GetSerializedSize(int InVersion)
+    public long GetSerializedSize(int InVersion)
     {
         long Size = sizeof(Magic) + sizeof(Version) + sizeof(IndexOffset) + sizeof(IndexSize) + sizeof(IndexHash) + sizeof(bEncryptedIndex);
 

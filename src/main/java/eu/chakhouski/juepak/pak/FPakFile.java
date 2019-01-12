@@ -90,7 +90,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     {
         FPakEncryptionKeyDelegate Delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
 
-        final byte[] keyBytes = new byte[20];
+        final byte[] keyBytes = new byte[32];
         if (Delegate.IsBound())
         {
             Delegate.Execute(keyBytes);

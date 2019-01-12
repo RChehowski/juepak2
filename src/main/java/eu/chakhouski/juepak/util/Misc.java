@@ -29,6 +29,47 @@ public class Misc
 
     public static Object NULL = null;
 
+
+    public static boolean BOOL(boolean v)
+    {
+        return v;
+    }
+
+    public static boolean BOOL(byte v)
+    {
+        return v != (byte)0;
+    }
+
+    public static boolean BOOL(short v)
+    {
+        return v != (short)0;
+    }
+
+    public static boolean BOOL(char v)
+    {
+        return v != (char)0;
+    }
+
+    public static boolean BOOL(int v)
+    {
+        return v != 0;
+    }
+
+    public static boolean BOOL(float v)
+    {
+        return v != .0f;
+    }
+
+    public static boolean BOOL(long v)
+    {
+        return v != 0L;
+    }
+
+    public static boolean BOOL(double v)
+    {
+        return v != .0;
+    }
+
     /**
      * Implicit cast to boolean (C/C++ style)
      *  - Primitive type T is false if and only if it is (T)0.

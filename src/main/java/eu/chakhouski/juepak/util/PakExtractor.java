@@ -104,8 +104,8 @@ public class PakExtractor
             {
                 for (final FPakCompressedBlock Block : Entry.CompressionBlocks)
                 {
-                    final long BaseOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
-                    final long Offset = BaseOffset + Block.CompressedStart;
+                    final long GlobalOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
+                    final long Offset = GlobalOffset + Block.CompressedStart;
                     final long BytesToRead = Block.CompressedEnd - Block.CompressedStart;
 
                     ExtractBlock(SourceChannel, DestChannel, Offset, (int) BytesToRead, bEntryIsEncrypted, true);
@@ -124,6 +124,7 @@ public class PakExtractor
             FMemory.Memset(sharedKeyBytes, 0, sizeof(sharedKeyBytes));
         }
     }
+
 
     private static void ExtractBlock(SeekableByteChannel srcChannel, WritableByteChannel dstChannel,
                                      final long BlockOffset, final int BlockSize,
@@ -170,7 +171,7 @@ public class PakExtractor
                     dstChannel.write(dstBuffer);
                 }
                 catch (DataFormatException e) {
-                    throw new IOException("Inflater data format exception detected: " + e);
+                    throw new IOException(e);
                 }
             }
         }

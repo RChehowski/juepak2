@@ -74,7 +74,7 @@ public class StringSerializationTest
 
         // Calculate a precise serialize capacity, this is also tested
         final int preciseCapacity = stream(samples)
-                .mapToInt(UE4Serializer::GetPreciseStringEncodeLength)
+                .mapToInt(UE4Serializer::GetSerializeSize)
                 .reduce((l, r) -> l + r)
                 .getAsInt();
 

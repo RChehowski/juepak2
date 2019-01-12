@@ -103,7 +103,7 @@ FPakEntry
         {
             if (CompressionMethod != COMPRESS_None)
             {
-                CompressionBlocks = UE4Deserializer.ReadArrayOfStructures(Ar, FPakCompressedBlock.class);
+                CompressionBlocks = UE4Deserializer.Read(Ar, FPakCompressedBlock[].class);
             }
 
             Flags = Ar.get();

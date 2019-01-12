@@ -23,7 +23,7 @@ public class UE4Serializer
     private static final ByteBuffer dstEncodeBuffer = ByteBuffer.allocate(ENCODE_BUFFER_SIZE * Character.BYTES)
             .order(ByteOrder.nativeOrder());
 
-    public static int GetPreciseStringEncodeLength(String s)
+    public static int GetSerializeSize(String s)
     {
         int length = 0;
 
@@ -46,6 +46,11 @@ public class UE4Serializer
         length += (int)encoder.maxBytesPerChar();
 
         return length;
+    }
+
+    public static int GetSerializeSize(int ignore)
+    {
+        return Integer.BYTES;
     }
 
     public static void Write(ByteBuffer b, byte value)

@@ -1,20 +1,18 @@
 package eu.chakhouski.juepak.util;
 
+import eu.chakhouski.juepak.annotations.FStruct;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import static eu.chakhouski.juepak.util.Misc.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;
-import static java.lang.String.join;
-import static java.lang.System.lineSeparator;
-import static java.util.Arrays.asList;
 
 public class UE4Deserializer
 {
@@ -22,7 +20,7 @@ public class UE4Deserializer
     // 1 byte
     public static boolean ReadBoolean(ByteBuffer b)
     {
-        return b.order(ByteOrder.LITTLE_ENDIAN).get() != 0;
+        return BOOL(b.order(ByteOrder.LITTLE_ENDIAN).get());
     }
 
     public static byte ReadByte(ByteBuffer b)
@@ -110,7 +108,7 @@ public class UE4Deserializer
 
     // ARRAY TYPES
     // 1 byte per element
-    public static boolean[] ReadArrayOfBooleans(ByteBuffer b)
+    private static boolean[] ReadArrayOfBooleans(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -126,7 +124,7 @@ public class UE4Deserializer
         return array;
     }
 
-    public static byte[] ReadArrayOfBytes(ByteBuffer b)
+    private static byte[] ReadArrayOfBytes(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -138,7 +136,7 @@ public class UE4Deserializer
     }
 
     // 2 bytes per element
-    public static char[] ReadArrayOfChars(ByteBuffer b)
+    private static char[] ReadArrayOfChars(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -149,7 +147,7 @@ public class UE4Deserializer
         return array;
     }
 
-    public static short[] ReadArrayOfShorts(ByteBuffer b)
+    private static short[] ReadArrayOfShorts(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -161,7 +159,7 @@ public class UE4Deserializer
     }
 
     // 4 bytes per element
-    public static int[] ReadArrayOfInts(ByteBuffer b)
+    private static int[] ReadArrayOfInts(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -172,7 +170,7 @@ public class UE4Deserializer
         return array;
     }
 
-    public static float[] ReadArrayOfFloats(ByteBuffer b)
+    private static float[] ReadArrayOfFloats(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -184,7 +182,7 @@ public class UE4Deserializer
     }
 
     // 8 bytes per element
-    public static long[] ReadArrayOfLongs(ByteBuffer b)
+    private static long[] ReadArrayOfLongs(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -195,7 +193,7 @@ public class UE4Deserializer
         return array;
     }
 
-    public static double[] ReadArrayOfDoubles(ByteBuffer b)
+    private static double[] ReadArrayOfDoubles(ByteBuffer b)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
@@ -206,48 +204,22 @@ public class UE4Deserializer
         return array;
     }
 
-    public static <T> T[] ReadArrayOfStructures(ByteBuffer b, Class<T> elementType)
+    private static <T> T ReadArrayOfStructures(ByteBuffer b, Class<T> arrayType)
     {
         // Read number of elements to deserialize
         final int NumElements = checkDeserializeArraySize(ReadInt(b));
 
+        if (!arrayType.isArray())
+            throw new IllegalArgumentException("Only valid for arrays");
+
+        final Class<?> componentType = arrayType.getComponentType();
+
         @SuppressWarnings("unchecked")
-        final T[] array = (T[])Array.newInstance(elementType, NumElements);
+        final T array = (T)Array.newInstance(componentType, NumElements);
 
-        try {
-            final Constructor<T> defaultConstructor = elementType.getConstructor();
-
-            for (int i = 0; i < NumElements; i++)
-            {
-                final T item = defaultConstructor.newInstance();
-                if (item instanceof UEDeserializable)
-                {
-                    try {
-                        ((UEDeserializable) item).Deserialize(b);
-                    }
-                    catch (BufferUnderflowException | BufferOverflowException be) {
-                        // Print buffer info
-                        System.err.println("Buffer exception caused: " + b.toString());
-
-                        // Rethrow exception, it is fatal, unfortunately :C
-                        throw be;
-                    }
-                }
-                else
-                {
-                    throw new IllegalArgumentException(join(lineSeparator(), asList(
-                            "Unsupported element class",
-                            "   Expected: Subclass of " + UEDeserializable.class,
-                            "   Actual: " + elementType
-                                                                                   )));
-                }
-
-                array[i] = item;
-            }
-        }
-        catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
-        }
+        // Put into array
+        for (int i = 0; i < NumElements; i++)
+            Array.set(array, i, Read(b, componentType));
 
         return array;
     }
@@ -263,10 +235,7 @@ public class UE4Deserializer
     {
         if (clazz.isArray())
         {
-            @SuppressWarnings("unchecked")
-            final T array = (T) ReadArray(b, clazz.getComponentType());
-
-            return array;
+            return ReadArray(b, clazz);
         }
         else if (clazz.isPrimitive())
         {
@@ -299,23 +268,10 @@ public class UE4Deserializer
             else
                 rawReadObject = null;
 
-            // Check raw object
-            if (clazz.isInstance(rawReadObject))
-            {
-                @SuppressWarnings("unchecked")
-                final T readObject = (T) rawReadObject;
+            @SuppressWarnings("unchecked")
+            final T readObject = (T) Objects.requireNonNull(rawReadObject, "Raw object mustn't be null");
 
-                return readObject;
-            }
-            else if (rawReadObject != null)
-            {
-                throw new IllegalArgumentException("Serialize object mismatch. Expected instance of " + clazz +
-                        ", got " + rawReadObject.getClass());
-            }
-            else
-            {
-                throw new IllegalArgumentException("Unknown primitive type: " + clazz);
-            }
+            return readObject;
         }
         else if (String.class.isAssignableFrom(clazz))
         {
@@ -330,10 +286,10 @@ public class UE4Deserializer
             // Retrieve a no-argument constructor
             final Constructor<T> noArgConstructor;
             try {
-                noArgConstructor = clazz.getConstructor();
+                noArgConstructor = clazz.getDeclaredConstructor();
             }
             catch (NoSuchMethodException e) {
-                throw new RuntimeException("Class " + clazz.getName() + " should have a no-argument constructor to be read");
+                throw new RuntimeException(clazz.getName() + " should have a no-argument constructor to be read", e);
             }
 
             // Create an instance of class
@@ -342,10 +298,10 @@ public class UE4Deserializer
                 instance = noArgConstructor.newInstance();
             }
             catch (IllegalAccessException e) {
-                throw new RuntimeException("A no-argument constructor of " + clazz.getName() + " must be public (accessible)");
+                throw new RuntimeException("A no-argument constructor of " + clazz.getName() + " must be public (accessible)", e);
             }
             catch (InstantiationException | InvocationTargetException e) {
-                throw new RuntimeException("Unable to instantiate " + clazz.getName() + ": " + e.getMessage());
+                throw new RuntimeException("Unable to instantiate " + clazz.getName(), e);
             }
 
             // Deserialize an instance
@@ -366,46 +322,55 @@ public class UE4Deserializer
      *       Because it provides a generic structure type.
      *
      * @param b Buffer, from which the data will be read.
-     * @param elementType Class of the element of the array.
+     * @param arrayType Class of the element of the array.
      *
      * @return A newly created array of deserialize items. It is an object because it can be a primitive array.
      */
-    private static Object ReadArray(ByteBuffer b, Class<?> elementType)
+    private static <T> T ReadArray(ByteBuffer b, Class<T> arrayType)
     {
         b.order(ByteOrder.LITTLE_ENDIAN);
 
-        if (elementType.isPrimitive())
+        if (!arrayType.isArray())
+            throw new IllegalArgumentException(arrayType.getName() + " is not an array type");
+
+        final Class<?> arrayComponentType = arrayType.getComponentType();
+
+        if (arrayComponentType.isPrimitive())
         {
-            if (elementType == boolean.class)
-                return ReadArrayOfBooleans(b);
+            if (arrayComponentType == boolean.class)
+                return (T)ReadArrayOfBooleans(b);
 
-            else if (elementType == byte.class)
-                return ReadArrayOfBytes(b);
+            else if (arrayComponentType == byte.class)
+                return (T)ReadArrayOfBytes(b);
 
-            else if (elementType == char.class)
-                return ReadArrayOfChars(b);
+            else if (arrayComponentType == char.class)
+                return (T)ReadArrayOfChars(b);
 
-            else if (elementType == short.class)
-                return ReadArrayOfShorts(b);
+            else if (arrayComponentType == short.class)
+                return (T)ReadArrayOfShorts(b);
 
-            else if (elementType == int.class)
-                return ReadArrayOfInts(b);
+            else if (arrayComponentType == int.class)
+                return (T)ReadArrayOfInts(b);
 
-            else if (elementType == float.class)
-                return ReadArrayOfFloats(b);
+            else if (arrayComponentType == float.class)
+                return (T)ReadArrayOfFloats(b);
 
-            else if (elementType == long.class)
-                return ReadArrayOfLongs(b);
+            else if (arrayComponentType == long.class)
+                return (T)ReadArrayOfLongs(b);
 
-            else if (elementType == double.class)
-                return ReadArrayOfDoubles(b);
+            else if (arrayComponentType == double.class)
+                return (T)ReadArrayOfDoubles(b);
 
             // Unknown primitive type
-            throw new IllegalArgumentException("Unknown primitive type: " + elementType);
+            throw new IllegalArgumentException("Unknown primitive type: " + arrayType);
+        }
+        else if (arrayComponentType.isAnnotationPresent(FStruct.class))
+        {
+            return ReadArrayOfStructures(b, arrayType);
         }
         else
         {
-            return ReadArrayOfStructures(b, elementType);
+            throw new IllegalArgumentException("Unable to serialize " + arrayType);
         }
     }
 
