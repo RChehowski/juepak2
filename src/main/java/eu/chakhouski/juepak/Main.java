@@ -7,6 +7,7 @@ import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.util.Packer;
 
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -16,31 +17,16 @@ import java.util.stream.Collectors;
 
 public class Main
 {
-    private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
-    private static final String packingDirectory = "/Users/netherwire/Pictures";
+    private static final String extractDirectory = "C:\\Users\\ASUS\\Desktop\\Extract";
+    private static final String packingDirectory = "C:\\Users\\ASUS\\Pictures";
 
-    private static final Path archiveFile = Paths.get("C:\\Users\\ASUS\\Desktop\\File.exe");
-
-
-
+    private static final Path archiveFile = Paths.get("C:\\Users\\ASUS\\Desktop\\Archive.pak");
 
 
 
 
     public static void main(String[] args) throws Exception
     {
-//        final List<File> files = deflateFile(new FileInputStream(archiveFile.toFile()), false, 64 * 1024);
-
-//        for (File file : files)
-//        {
-//            System.out.println(file.toString() + " " + file.length());
-//            file.delete();
-//        }
-
-
-        System.exit(1);
-
-
         FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes ->
         {
             final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");

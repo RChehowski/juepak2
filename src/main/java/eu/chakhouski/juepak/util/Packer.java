@@ -226,8 +226,6 @@ public class Packer
                     // Update hash with raw, not deflated, not encrypted file data
                     Sha1.update(readBuffer, 0, bytesReadPerTransmission);
 
-                    bytesReadPerBlock += bytesReadPerTransmission;
-
                     // Invoke consumer if some
                     if (numBytesConsumer != null)
                         numBytesConsumer.accept(bytesReadPerTransmission);
@@ -245,6 +243,8 @@ public class Packer
                                 bytesWrittenPerBlock += bytesDeflated;
                         }
                     }
+
+                    bytesReadPerBlock += bytesReadPerTransmission;
                 }
 
 //                bytesReadTotal += bytesReadPerBlock;
@@ -253,7 +253,7 @@ public class Packer
                 if (bytesReadPerBlock > 0)
                 {
                     // Create and immediately put into the set of files
-                    final File tempFile = File.createTempFile("pak_temp_", ".chunk");
+                    final File tempFile = File.createTempFile("juepak_temp_", ".cblock");
                     tempFiles.add(tempFile);
 
                     final int sizeToWrite = bEncrypt ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesReadPerBlock;
