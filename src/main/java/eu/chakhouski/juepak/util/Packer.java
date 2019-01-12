@@ -73,12 +73,6 @@ public class Packer
         }
     }
 
-
-    /**
-     * Max compressed buffer size according to UE4 spec
-     */
-    private static final int MAX_COMPRESSED_BUFFER_SIZE = 64 * 1024;
-
     /**
      * Key bytes must be nullified when decryption is done.
      */
@@ -87,8 +81,13 @@ public class Packer
     /**
      * Shared deflate state machine
      */
-    private static final Deflater deflater = new Deflater();
+    private final Deflater deflater = new Deflater();
 
+
+    /**
+     * Max compressed buffer size according to UE4 spec
+     */
+    private static final int MAX_COMPRESSED_BUFFER_SIZE = 64 * 1024;
 
     private static final int DEFLATE_READ_BUFFER_LENGTH = 512;
     private static final int DEFLATE_MAX_FOOTER_LENGTH = 16;
@@ -160,10 +159,7 @@ public class Packer
 
             // Write index
             final ByteBuffer entriesBuffer = serializeIndex(nameEntryMap, "../../../", indexHash);
-
             c.write(entriesBuffer);
-
-
 
 
             // Write info
@@ -237,12 +233,8 @@ public class Packer
         return entriesBuffer;
     }
 
-
-    private static List<File> deflateFile(InputStream is, boolean bEncrypt,
-                                          final MutableLong uncompressedSize,
-                                          final MutableLong size,
-                                          byte[] OutHashBytes, LongConsumer bytesCounter)
-            throws IOException
+    private List<File> deflateFile(InputStream is, final MutableLong uncompressedSize, final MutableLong size,
+                                   byte[] OutHashBytes, LongConsumer bytesCounter) throws IOException
     {
         // Buffers
         final byte[] readBuffer = new byte[DEFLATE_READ_BUFFER_LENGTH];
@@ -302,11 +294,7 @@ public class Packer
                     bytesWrittenPerBlock += deflater.deflate(blockBuffer, bytesWrittenPerBlock, blockBuffer.length - bytesWrittenPerBlock);
 
                     // Determine final chunk size to write
-                    final int sizeToWrite;
-                    if (bEncrypt)
-                        sizeToWrite = Align(bytesWrittenPerBlock, FAES.getBlockSize());
-                    else
-                        sizeToWrite = bytesWrittenPerBlock;
+                    final int sizeToWrite = setup.encryptContent ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesWrittenPerBlock;
 
                     if (sizeToWrite > MAX_COMPRESSED_BUFFER_SIZE)
                         throw new IllegalStateException("Too huge block: " + sizeToWrite + " bytes, allowed: " + MAX_COMPRESSED_BUFFER_SIZE);
@@ -316,7 +304,7 @@ public class Packer
                         Arrays.fill(blockBuffer, bytesReadPerBlock, sizeToWrite, (byte)0);
 
                     // Maybe user desired to encrypt data?
-                    if (bEncrypt)
+                    if (setup.encryptContent)
                         FAES.EncryptData(blockBuffer, sizeToWrite, SharedKeyBytes);
 
                     // Create and immediately put into the set of files
@@ -377,7 +365,7 @@ public class Packer
         final MutableLong uncompressedSize = new MutableLong();
         final MutableLong size = new MutableLong();
 
-        final List<File> compressedTempFiles = deflateFile(is, bEncrypt, size, uncompressedSize, e.Hash, null);
+        final List<File> compressedTempFiles = deflateFile(is, size, uncompressedSize, e.Hash, null);
 
         if (bEncrypt)
             Arrays.fill(SharedKeyBytes, (byte)0);
