@@ -30,14 +30,21 @@ public class UE4Serializer
         // 1. Length of string is an integer
         length += sizeof(int.class);
 
+        asciiEncoder.reset();
+
         // Find encoder
         final CharsetEncoder encoder;
         if (asciiEncoder.canEncode(s))
             encoder = asciiEncoder;
-        else if (utf16Encoder.canEncode(s))
-            encoder = utf16Encoder;
         else
-            throw new IllegalArgumentException("Can not encode \"" + s + "\"");
+        {
+            utf16Encoder.reset();
+
+            if (utf16Encoder.canEncode(s))
+                encoder = utf16Encoder;
+            else
+                throw new IllegalArgumentException("Can not encode \"" + s + "\"");
+        }
 
         // 2. Content bytes
         length += (s.length() * (int)encoder.maxBytesPerChar());

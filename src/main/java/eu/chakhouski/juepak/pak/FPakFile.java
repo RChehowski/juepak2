@@ -23,7 +23,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import static eu.chakhouski.juepak.util.Misc.BOOL;
+import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.NULL;
 import static eu.chakhouski.juepak.util.Misc.TEXT;
 import static eu.chakhouski.juepak.util.Misc.toInt;

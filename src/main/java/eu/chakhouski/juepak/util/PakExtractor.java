@@ -22,7 +22,7 @@ import java.util.zip.Inflater;
 
 import static eu.chakhouski.juepak.ECompressionFlags.StaticToString;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
-import static eu.chakhouski.juepak.util.Misc.BOOL;
+import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 

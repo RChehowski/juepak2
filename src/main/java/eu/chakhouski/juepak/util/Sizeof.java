@@ -35,31 +35,42 @@ public class Sizeof
 
 
 
-    public static int sizeof(boolean ignore) { return Byte.BYTES; }
-    public static int sizeof(byte ignore) { return Byte.BYTES; }
+    @SuppressWarnings("unused")
+    public static int sizeof(boolean $) { return Byte.BYTES; }
 
-    public static int sizeof(short ignore) { return Short.BYTES; }
-    public static int sizeof(char ignore) { return Character.BYTES; }
+    @SuppressWarnings("unused")
+    public static int sizeof(byte $)    { return Byte.BYTES; }
 
-    public static int sizeof(int ignore) { return Integer.BYTES; }
-    public static int sizeof(long ignore) { return Long.BYTES; }
+    @SuppressWarnings("unused")
+    public static int sizeof(short $)   { return Short.BYTES; }
 
-    public static int sizeof(float ignore) { return Float.BYTES; }
-    public static int sizeof(double ignore) { return Double.BYTES; }
+    @SuppressWarnings("unused")
+    public static int sizeof(char $)    { return Character.BYTES; }
+
+    @SuppressWarnings("unused")
+    public static int sizeof(int $)     { return Integer.BYTES; }
+
+    @SuppressWarnings("unused")
+    public static int sizeof(long $)    { return Long.BYTES; }
+
+    @SuppressWarnings("unused")
+    public static int sizeof(float $)   { return Float.BYTES; }
+
+    @SuppressWarnings("unused")
+    public static int sizeof(double $)  { return Double.BYTES; }
 
 
+    public static int sizeof(boolean[] a) { return Byte.BYTES * a.length; }
+    public static int sizeof(byte[] a)    { return Byte.BYTES * a.length; }
 
-    public static int sizeof(boolean[] array) { return Byte.BYTES * array.length; }
-    public static int sizeof(byte[] array) { return Byte.BYTES * array.length; }
+    public static int sizeof(short[] a)   { return Short.BYTES * a.length; }
+    public static int sizeof(char[] a)    { return Character.BYTES * a.length; }
 
-    public static int sizeof(short[] array) { return Short.BYTES * array.length; }
-    public static int sizeof(char[] array) { return Character.BYTES * array.length; }
+    public static int sizeof(int[] a)     { return Integer.BYTES * a.length; }
+    public static int sizeof(long[] a)    { return Long.BYTES * a.length; }
 
-    public static int sizeof(int[] array) { return Integer.BYTES * array.length; }
-    public static int sizeof(long[] array) { return Long.BYTES * array.length; }
-
-    public static int sizeof(float[] array) { return Float.BYTES * array.length; }
-    public static int sizeof(double[] array) { return Double.BYTES * array.length; }
+    public static int sizeof(float[] a)   { return Float.BYTES * a.length; }
+    public static int sizeof(double[] a)  { return Double.BYTES * a.length; }
 
     public static int sizeof(Object object)
     {
@@ -96,13 +107,9 @@ public class Sizeof
                     {
                         final StaticSize staticSize = field.getAnnotation(StaticSize.class);
 
-                        final int dimension;
-                        if (staticSize != null)
-                            dimension = staticSize.value();
-                        else
-                            dimension = 1;
-
                         final int elementSize = getStructSize(field.getType());
+                        final int dimension = staticSize != null ? staticSize.value() : 1;
+
                         size += elementSize * dimension;
                     }
                 }

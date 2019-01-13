@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.DigestException;
 import java.security.MessageDigest;
@@ -134,6 +135,11 @@ public class Packer
     {
         // Must keep user's order, so use linked map
         final Map<String, FPakEntry> nameEntryMap = new LinkedHashMap<>();
+
+        if (Files.isRegularFile(savePath))
+        {
+            Files.delete(savePath);
+        }
 
         // Write everything into archive file
         try (final FileOutputStream fos = new FileOutputStream(savePath.toFile()))
