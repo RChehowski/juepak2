@@ -85,6 +85,10 @@ public class Packer
     private final Deflater deflater = new Deflater();
 
 
+    private final byte[] SharedDeflateReadBuffer = new byte[DEFLATE_READ_BUFFER_LENGTH];
+    private final byte[] SharedDeflateBlockBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
+
+
     /**
      * Max compressed buffer size according to UE4 spec
      */
@@ -153,41 +157,44 @@ public class Packer
 
                 try (final InputStream fis = new FileInputStream(file))
                 {
-                    final FPakEntry entry = copyCompressToPak(fis, c, setup.encryptContent);
+                    final FPakEntry entry;
+                    if (setup.compressContent)
+                    {
+                        entry = copyCompressToPak(fis, c, setup.encryptContent);
+                    }
+                    else
+                    {
+                        throw new UnsupportedOperationException("Not implemented for non-compressed entries");
+                    }
+
                     nameEntryMap.put(PathUtils.pathToPortableUE4String(commonPath.relativize(path)), entry);
                 }
             }
 
-
-            final byte[] indexHash = new byte[20];
-
-            final long indexBegin = c.position();
+            // Instantiate info (before index was written)
+            final FPakInfo info = new FPakInfo();
+            info.IndexOffset = c.position();
+            info.Magic = FPakInfo.PakFile_Magic;
+            info.Version = setup.pakVersion;
+            info.bEncryptedIndex = Misc.toByte(setup.encryptIndex);
 
             // Write index
-            final ByteBuffer entriesBuffer = serializeIndex(nameEntryMap, "../../../", indexHash);
+            final ByteBuffer entriesBuffer = serializeIndex(nameEntryMap, "../../../", info.IndexHash);
             c.write(entriesBuffer);
 
+            // Store index size (after index was written)
+            info.IndexSize = entriesBuffer.limit();
 
-            // Write info
-            final FPakInfo info = new FPakInfo(); {
-                info.Magic = FPakInfo.PakFile_Magic;
-                info.Version = setup.pakVersion;
-                info.IndexOffset = indexBegin;
-                info.IndexSize = entriesBuffer.limit();
-                info.bEncryptedIndex = Misc.toByte(setup.encryptIndex);
-
-                System.arraycopy(indexHash, 0, info.IndexHash, 0, indexHash.length);
-            }
-
-            final ByteBuffer infoBuffer = ByteBuffer.allocate(toInt(info.GetSerializedSize(setup.pakVersion)));
+            // Finally, serialize index, may allocate direct buffer because we never need an array
+            final ByteBuffer infoBuffer = ByteBuffer.allocateDirect(toInt(info.GetSerializedSize(setup.pakVersion)));
             info.Serialize(infoBuffer);
-
             c.write((ByteBuffer) infoBuffer.flip());
         }
     }
 
     private ByteBuffer serializeIndex(Map<String, FPakEntry> nameEntryMap, String mountPoint, byte[] outIndexHash)
     {
+        // 1.
         // First pass - compute buffer size
         int serializeSize = 0;
 
@@ -203,6 +210,7 @@ public class Packer
         // Compute buffer size (possible with serialization padding)
         final int bufferSize = (setup.encryptIndex) ? Align(serializeSize, FAES.getBlockSize()) : serializeSize;
 
+        // 2.
         // Second pass - actually serialize
         final ByteBuffer entriesBuffer = ByteBuffer.allocate(bufferSize);
 
@@ -210,10 +218,11 @@ public class Packer
         UE4Serializer.Write(entriesBuffer, nameEntryMap.size());
 
         // Write entries
-        nameEntryMap.forEach((k, v) -> {
-            UE4Serializer.Write(entriesBuffer, k);
-            v.Serialize(entriesBuffer, setup.pakVersion);
-        });
+        for (Map.Entry<String, FPakEntry> entry : nameEntryMap.entrySet())
+        {
+            UE4Serializer.Write(entriesBuffer, entry.getKey());
+            entry.getValue().Serialize(entriesBuffer, setup.pakVersion);
+        }
 
         // Flip and check whether the size is correct
         entriesBuffer.flip();
@@ -223,7 +232,6 @@ public class Packer
 
         // Compute hash
         FSHA1.HashBuffer(entriesBuffer.array(), bufferSize, outIndexHash);
-
 
         // Then encrypt if necessary
         if (setup.encryptIndex)
@@ -235,17 +243,12 @@ public class Packer
             Arrays.fill(SharedKeyBytes, (byte)0);
         }
 
-
         return entriesBuffer;
     }
 
     private List<File> deflateFile(InputStream is, final MutableLong uncompressedSize, final MutableLong size,
                                    byte[] OutHashBytes, LongConsumer bytesCounter) throws IOException
     {
-        // Buffers
-        final byte[] readBuffer = new byte[DEFLATE_READ_BUFFER_LENGTH];
-        final byte[] blockBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
-
         final List<File> tempFiles = new ArrayList<>();
 
         // Nullify hash bytes and reset sha1 instance
@@ -255,7 +258,7 @@ public class Packer
             Sha1.reset();
         }
 
-//        try {
+        try {
             boolean readIsDone = false;
             while (!readIsDone)
             {
@@ -265,11 +268,11 @@ public class Packer
                 deflater.reset();
 
                 int bytesReadPerTransmission;
-                while ((bytesWrittenPerBlock < WRITE_SIZE_DELTA) && ((bytesReadPerTransmission = is.read(readBuffer)) > 0))
+                while ((bytesWrittenPerBlock < WRITE_SIZE_DELTA) && ((bytesReadPerTransmission = is.read(SharedDeflateReadBuffer)) > 0))
                 {
                     // Update hash with raw, not deflated, not encrypted file data
                     if (OutHashBytes != null)
-                        Sha1.update(readBuffer, 0, bytesReadPerTransmission);
+                        Sha1.update(SharedDeflateReadBuffer, 0, bytesReadPerTransmission);
 
                     // Invoke consumer if some
                     if (bytesCounter != null)
@@ -278,12 +281,12 @@ public class Packer
                     // Deflate until done
                     if (!deflater.finished())
                     {
-                        deflater.setInput(readBuffer, 0, bytesReadPerTransmission);
+                        deflater.setInput(SharedDeflateReadBuffer, 0, bytesReadPerTransmission);
 
                         while (!deflater.needsInput())
                         {
-                            final int len = blockBuffer.length - bytesWrittenPerBlock;
-                            final int bytesDeflated = deflater.deflate(blockBuffer, bytesWrittenPerBlock, len, Deflater.SYNC_FLUSH);
+                            final int len = SharedDeflateBlockBuffer.length - bytesWrittenPerBlock;
+                            final int bytesDeflated = deflater.deflate(SharedDeflateBlockBuffer, bytesWrittenPerBlock, len, Deflater.SYNC_FLUSH);
 
                             if (bytesDeflated > 0)
                                 bytesWrittenPerBlock += bytesDeflated;
@@ -297,7 +300,7 @@ public class Packer
                 {
                     // Finish deflation
                     deflater.finish();
-                    bytesWrittenPerBlock += deflater.deflate(blockBuffer, bytesWrittenPerBlock, blockBuffer.length - bytesWrittenPerBlock);
+                    bytesWrittenPerBlock += deflater.deflate(SharedDeflateBlockBuffer, bytesWrittenPerBlock, SharedDeflateBlockBuffer.length - bytesWrittenPerBlock);
 
                     // Determine final chunk size to write
                     final int sizeToWrite = setup.encryptContent ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesWrittenPerBlock;
@@ -307,20 +310,19 @@ public class Packer
 
                     // Append zeroes, instead of garbage to data space, lost due to AES block alignment.
                     if (bytesWrittenPerBlock != sizeToWrite)
-                        Arrays.fill(blockBuffer, bytesReadPerBlock, sizeToWrite, (byte)0);
+                        Arrays.fill(SharedDeflateBlockBuffer, bytesReadPerBlock, sizeToWrite, (byte)0);
 
-                    // Maybe user desired to encrypt data?
                     if (setup.encryptContent)
-                        FAES.EncryptData(blockBuffer, sizeToWrite, SharedKeyBytes);
+                        FAES.EncryptData(SharedDeflateBlockBuffer, sizeToWrite, SharedKeyBytes);
 
-                    // Create and immediately put into the set of files
+                    // Create and immediately put into the list of files
                     final File tempFile = File.createTempFile("juepak_temp_", ".cblock");
                     tempFiles.add(tempFile);
 
                     // Finally, write the data
                     try (final FileOutputStream fis = new FileOutputStream(tempFile))
                     {
-                        fis.write(blockBuffer, 0, sizeToWrite);
+                        fis.write(SharedDeflateBlockBuffer, 0, sizeToWrite);
                     }
                 }
                 else
@@ -343,17 +345,24 @@ public class Packer
             catch (DigestException de) {
                 throw new RuntimeException(de);
             }
-//        }
-//        catch (RuntimeException | IOException e)
-//        {
-//            for (File tempFile : tempFiles)
-//                tempFile.delete();
-//
-//            tempFiles.clear();
-//
-//            // Rethrow
-//            throw e;
-//        }
+        }
+        catch (RuntimeException | IOException e)
+        {
+            for (File tempFile : tempFiles)
+                tempFile.delete();
+
+            tempFiles.clear();
+
+            // Rethrow
+            throw e;
+        }
+        finally
+        {
+            // Nullify all intermediate buffers for safety reasons
+
+            Arrays.fill(this.SharedDeflateReadBuffer, (byte)0);
+            Arrays.fill(this.SharedDeflateBlockBuffer, (byte)0);
+        }
 
         return tempFiles;
     }

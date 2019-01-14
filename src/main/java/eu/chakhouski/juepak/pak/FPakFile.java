@@ -120,13 +120,14 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         final ByteBuffer map = ByteBuffer.allocate(toInt(Info.GetSerializedSize(Info.Version)))
                 .order(ByteOrder.LITTLE_ENDIAN);
 
-        channel.position(CachedTotalSize - Info.GetSerializedSize());
-        channel.read(map);
+        final int FIXME_defaultVersion = FPakInfo.PakFile_Version_RelativeChunkOffsets;
 
+        channel.position(CachedTotalSize - Info.GetSerializedSize(FIXME_defaultVersion));
+        channel.read(map);
 
         map.flip();
 
-        Info.Deserialize(map, FPakInfo.PakFile_Version_Latest);
+        Info.Deserialize(map, FIXME_defaultVersion);
 
         if (CachedTotalSize < Info.GetSerializedSize())
         {

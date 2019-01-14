@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A container collection, representing a least-recently use cache.
+ * A container collection, representing a preempting least-recently use cache.
  *
  * @see <a href="https://en.wikipedia.org/wiki/Cache_replacement_policies">LRU Cache</a>
  * @param <K> Key type.
