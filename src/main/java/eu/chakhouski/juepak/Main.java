@@ -35,7 +35,7 @@ public class Main
         final Packer packer = Packer.builder()
                 .encryptIndex(false)
                 .encryptContent(false)
-                .compressContent(true)
+                .compressContent(false)
                 .pakVersion(FPakInfo.PakFile_Version_RelativeChunkOffsets)
                 .build();
 

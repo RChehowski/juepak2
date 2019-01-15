@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
@@ -188,7 +189,7 @@ public class Packer
                     }
                     else
                     {
-                        throw new UnsupportedOperationException("Not implemented for non-compressed entries");
+                        entry = copyToPak(fis, c, setup.encryptContent);
                     }
 
                     nameEntryMap.put(PathUtils.pathToPortableUE4String(commonPath.relativize(path)), entry);
@@ -214,6 +215,61 @@ public class Packer
             info.Serialize(infoBuffer);
             c.write((ByteBuffer) infoBuffer.flip());
         }
+    }
+
+    private FPakEntry copyToPak(InputStream is, SeekableByteChannel os, boolean bEncrypt) throws IOException
+    {
+        final long entryOffset = os.position();
+
+        Sha1.reset();
+
+
+        final FPakEntry entry = new FPakEntry();
+
+        // Size is constant
+        os.position(entryOffset + entry.GetSerializedSize(setup.pakVersion));
+
+
+        long bytesReadTotal = 0;
+        int bytesReadPerTransmission;
+
+        final ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
+        while ((bytesReadPerTransmission = is.read(buffer.array())) > 0)
+        {
+            buffer.position(0).limit(bytesReadPerTransmission);
+            os.write(buffer);
+
+            Sha1.update(buffer.array(), 0, bytesReadPerTransmission);
+
+            bytesReadTotal += bytesReadPerTransmission;
+        }
+
+        // Finish entry fulfilment
+        entry.Offset = entryOffset;
+        entry.Size = bytesReadTotal;
+        entry.UncompressedSize = bytesReadTotal;
+        entry.CompressionMethod = ECompressionFlags.COMPRESS_None;
+
+        try {
+            Sha1.digest(entry.Hash, 0, Sha1.getDigestLength());
+        }
+        catch (DigestException e) {
+            throw new RuntimeException(e);
+        }
+
+        entry.SetEncrypted(setup.encryptContent);
+        entry.SetDeleteRecord(false); // No support yet
+
+        // Serialize pak entry
+        final ByteBuffer entryBuffer = ByteBuffer.allocate(toInt(entry.GetSerializedSize(setup.pakVersion)));
+        entry.Serialize(entryBuffer, setup.pakVersion);
+        entryBuffer.flip();
+
+        // Finally, write and restore a position
+        os.position(entryOffset).write(entryBuffer);
+        os.position(os.size());
+
+        return entry;
     }
 
     private ByteBuffer serializeIndex(Map<String, FPakEntry> nameEntryMap, String mountPoint, byte[] outIndexHash)
@@ -416,7 +472,7 @@ public class Packer
         e.CompressionBlocks = new FPakCompressedBlock[compressedTempFiles.size()];
         e.CompressionBlockSize = MAX_COMPRESSED_BUFFER_SIZE;
 
-        e.SetDeleteRecord(false);
+        e.SetDeleteRecord(false); // No support yet
         e.SetEncrypted(bEncrypt);
 
         final long baseOffset = (setup.pakVersion >= FPakInfo.PakFile_Version_RelativeChunkOffsets) ? 0 : beginPosition;
