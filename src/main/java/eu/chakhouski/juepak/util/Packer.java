@@ -39,6 +39,9 @@ import static eu.chakhouski.juepak.util.Misc.toInt;
 
 public class Packer
 {
+    /**
+     * A builder used to construct a packer.
+     */
     public static final class PackerSetup
     {
         private boolean encryptIndex = false;
@@ -46,6 +49,10 @@ public class Packer
         private boolean compressContent = false;
 
         private int pakVersion = FPakInfo.PakFile_Version_Latest;
+
+        private PackerSetup()
+        {
+        }
 
         public PackerSetup encryptIndex(boolean value) {
             encryptIndex = value;
@@ -75,21 +82,6 @@ public class Packer
     }
 
     /**
-     * Key bytes must be nullified when decryption is done.
-     */
-    private final byte[] SharedKeyBytes = new byte[32];
-
-    /**
-     * Shared deflate state machine
-     */
-    private final Deflater deflater = new Deflater();
-
-
-    private final byte[] SharedDeflateReadBuffer = new byte[DEFLATE_READ_BUFFER_LENGTH];
-    private final byte[] SharedDeflateBlockBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
-
-
-    /**
      * Max compressed buffer size according to UE4 spec
      */
     private static final int MAX_COMPRESSED_BUFFER_SIZE = 64 * 1024;
@@ -98,8 +90,31 @@ public class Packer
     private static final int DEFLATE_MAX_FOOTER_LENGTH = 16;
 
     private static final int WRITE_SIZE_DELTA = MAX_COMPRESSED_BUFFER_SIZE -
-            DEFLATE_READ_BUFFER_LENGTH -
-            DEFLATE_MAX_FOOTER_LENGTH;
+        DEFLATE_READ_BUFFER_LENGTH - DEFLATE_MAX_FOOTER_LENGTH;
+
+
+    /**
+     * Small raw data buffer.
+     */
+    private final byte[] SharedDeflateReadBuffer = new byte[DEFLATE_READ_BUFFER_LENGTH];
+
+    /**
+     * A larger deflated data buffer.
+     */
+    private final byte[] SharedDeflateBlockBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
+
+    /**
+     * Key bytes MUST BE NULLIFIED when decryption is done.
+     *
+     * This should be done in the finally{} block to clear cached data even if the exception was thrown.
+     */
+    private final byte[] SharedKeyBytes = new byte[32];
+
+    /**
+     * Shared deflate state machine
+     */
+    private final Deflater deflater = new Deflater();
+
 
     /**
      * Sha1 digest instance
@@ -122,12 +137,21 @@ public class Packer
     private final Set<Path> paths = new LinkedHashSet<>();
 
 
-
+    /**
+     * A private constructor, used by a builder.
+     *
+     * @param packerSetup
+     */
     private Packer(PackerSetup packerSetup)
     {
         this.setup = packerSetup;
     }
 
+    /**
+     * Add a path to a file to be packed.
+     *
+     * @param path Path to a file to be packed into an archive.
+     */
     public void add(Path path)
     {
         paths.add(path);
@@ -359,7 +383,6 @@ public class Packer
         finally
         {
             // Nullify all intermediate buffers for safety reasons
-
             Arrays.fill(this.SharedDeflateReadBuffer, (byte)0);
             Arrays.fill(this.SharedDeflateBlockBuffer, (byte)0);
         }

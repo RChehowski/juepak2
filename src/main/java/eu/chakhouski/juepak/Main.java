@@ -1,7 +1,6 @@
 package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.pak.FFileIterator;
-import eu.chakhouski.juepak.pak.FPakEntry;
 import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
@@ -58,8 +57,12 @@ public class Main
         {
             for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
             {
-                final FPakEntry e = iterator.next();
-                iterator.extractMixed(extractDirectory);
+//                final FPakEntry e = iterator.next();
+//                iterator.extractMixed(extractDirectory);
+
+                final FPakFile.Entry entry = iterator.next();
+
+                System.out.println(entry.toString());
             }
         }
     }

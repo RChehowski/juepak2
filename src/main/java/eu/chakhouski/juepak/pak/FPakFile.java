@@ -6,11 +6,9 @@ import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FCoreDelegates.FPakEncryptionKeyDelegate;
 import eu.chakhouski.juepak.ue4.FMemory;
-import eu.chakhouski.juepak.ue4.FPaths;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
-import org.apache.commons.lang.mutable.MutableInt;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,34 +17,148 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.SeekableByteChannel;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
 
 import static eu.chakhouski.juepak.util.Bool.BOOL;
-import static eu.chakhouski.juepak.util.Misc.NULL;
-import static eu.chakhouski.juepak.util.Misc.TEXT;
 import static eu.chakhouski.juepak.util.Misc.toInt;
-import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @SuppressWarnings("StringConcatenationInLoop")
-public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
+public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 {
+    /** Map of entries */
+    Map<String, FPakEntry> GetEntries()
+    {
+        return Entries;
+    }
+
+    void setEntries(Map<String, FPakEntry> entries)
+    {
+        Entries = entries;
+    }
+
+    public static class Entry
+    {
+        public final String Filename;
+        public final FPakEntry Entry;
+
+
+        public Entry(String filename, FPakEntry entry)
+        {
+            Filename = filename;
+            Entry = entry;
+        }
+
+        public Entry(Map.Entry<? extends String, ? extends FPakEntry> mapEntry)
+        {
+            this(mapEntry.getKey(), mapEntry.getValue());
+        }
+
+        // *** API bridge ***
+//        @APIBridgeMethod
+//        public void extractMixed(String RootPath) throws IOException
+//        {
+//            extractMixed(Paths.get(RootPath));
+//        }
+
+//        @APIBridgeMethod
+//        public void extractMixed(Path RootPath) throws IOException
+//        {
+//            final Path AbsolutePath = RootPath.resolve(Filename);
+//            final Path AbsoluteDir = AbsolutePath.getParent();
+//
+//            // Create a directory if none yet
+//            if (!Files.isDirectory(AbsoluteDir))
+//            {
+//                Files.createDirectories(AbsoluteDir);
+//            }
+//
+//            // Extract to file channel
+//            try (final FileOutputStream FileOS = new FileOutputStream(AbsolutePath.toFile()))
+//            {
+//                PakExtractor.Extract(PakFile, Entry, Channels.newChannel(FileOS));
+//            }
+//        }
+//
+//        @APIBridgeMethod
+//        public void extractToMemory(final byte[] buffer) throws IOException
+//        {
+//            extractToMemory(buffer, 0);
+//        }
+//
+//        @APIBridgeMethod
+//        public void extractToMemory(final byte[] Buffer, final int Offset) throws IOException
+//        {
+//            // Perform fast check whether the drain can fit that much data
+//            final int bufferCapacity = Buffer.length - Offset;
+//            if (bufferCapacity < Entry.UncompressedSize)
+//            {
+//                throw new ArrayIndexOutOfBoundsException(
+//                        "Your buffer of " + Buffer.length + " bytes starting from position " + Offset +
+//                        " (total capacity of " + bufferCapacity + " bytes) can not fit current" +
+//                        " pak entry (file) of " + Entry.UncompressedSize + " bytes"
+//                );
+//            }
+//
+//            // Do extract
+//            PakExtractor.Extract(PakFile, Entry, Channels.newChannel(new OutputStream() {
+//                int position = 0;
+//
+//                @Override
+//                public void write(int b)
+//                {
+//                    Buffer[Offset + (position++)] = (byte)b;
+//                }
+//
+//                @Override
+//                public void write(byte[] InBuffer, int InBufferOffset, int InBufferLength)
+//                {
+//                    // the default write(int) fallback is too slow, we can instead copy bunches of bytes at once
+//                    System.arraycopy(InBuffer, InBufferOffset, Buffer, Offset + position, InBufferLength);
+//                    position += InBufferLength;
+//                }
+//            }));
+//        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+
+            final Entry entry = (Entry) o;
+            return Objects.equals(Filename, entry.Filename) && Objects.equals(Entry, entry.Entry);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(Filename, Entry);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Entry{Filename='" + Filename + "', Entry=" + Entry + '}';
+        }
+    }
+
     /** Pak filename. */
     private final String PakFilename;
-
     /** Pak file info (trailer). */
-    public final FPakInfo Info = new FPakInfo();
+    private final FPakInfo Info = new FPakInfo();
     /** Mount point. */
     private String MountPoint;
     /** Info on all files stored in pak. */
-    private FPakEntry[] Files;
-    /** Pak Index organized as a map of directories for faster Directory iteration. Valid only when bFilenamesRemoved == false. */
-    Map<String, Map<String, FPakEntry>> Index = new HashMap<>();
-    /** The number of file entries in the pak file */
     private int NumEntries;
     /** TotalSize of the pak file */
     private long CachedTotalSize;
+    /** Map of entries */
+    private Map<String, FPakEntry> Entries = new LinkedHashMap<>();
 
 
     /**
@@ -102,16 +214,6 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         FMemory.Memset(keyBytes, 0, keyBytes.length);
     }
 
-    /**
-     * Gets pak file index.
-     *
-     * @return Pak index.
-     */
-    Map<String, Map<String, FPakEntry>> GetIndex()
-    {
-        return Index;
-    }
-
     private void Initialize(SeekableByteChannel channel) throws IOException
     {
         CachedTotalSize = channel.size();
@@ -161,7 +263,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     {
         if (CachedTotalSize < (Info.IndexOffset + Info.IndexSize))
         {
-            throw new RuntimeException("Corrupted index offset in pak file.");
+            throw new IOException("Corrupted index offset in pak file.");
         }
         else
         {
@@ -171,13 +273,13 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             final int actualReadBytes = channel.position(Info.IndexOffset).read(IndexData);
             if (actualReadBytes != Info.IndexSize)
             {
-                throw new IllegalArgumentException(String.join(System.lineSeparator(), Arrays.asList(
+                throw new IOException(String.join(System.lineSeparator(),
                     "Can not read that much index data from pak file channel",
                     "   index offset: " + Info.IndexOffset,
                     "   index size  : " + Info.IndexSize,
                     "   total bytes : " + channel.size(),
                     "   actual read : " + actualReadBytes
-                )));
+                ));
             }
 
             IndexData.position(0);
@@ -191,19 +293,13 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             // Check SHA1 value.
             byte[] IndexHash = new byte[20];
             FSHA1.HashBuffer(IndexData.array(), IndexData.capacity(), IndexHash);
-            if (FMemory.Memcmp(IndexHash, Info.IndexHash, sizeof(IndexHash)) != 0)
+
+            if (!Arrays.equals(IndexHash, Info.IndexHash))
             {
-                String StoredIndexHash, ComputedIndexHash;
-                StoredIndexHash = TEXT("0x");
-                ComputedIndexHash = TEXT("0x");
+                final String StoredIndexHash = "0x" + FString.BytesToHex(Info.IndexHash);
+                final String ComputedIndexHash = "0x" + FString.BytesToHex(IndexHash);
 
-                for (int ByteIndex = 0; ByteIndex < 20; ++ByteIndex)
-                {
-                    StoredIndexHash += FString.Printf(TEXT("%02X"), Info.IndexHash[ByteIndex]);
-                    ComputedIndexHash += FString.Printf(TEXT("%02X"), IndexHash[ByteIndex]);
-                }
-
-                throw new RuntimeException(String.join(System.lineSeparator(), Arrays.asList(
+                throw new IOException(String.join(System.lineSeparator(),
                     "Corrupt pak index detected!",
                     " Filename: " + PakFilename,
                     " Encrypted: " + Info.bEncryptedIndex,
@@ -213,7 +309,7 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
                     " Stored Index Hash: " + StoredIndexHash,
                     " Computed Index Hash: " + ComputedIndexHash,
                     "Corrupted index in pak file (CRC mismatch)."
-                )));
+                ));
             }
 
             // Read the default mount point and all entries.
@@ -222,55 +318,19 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
             NumEntries = UE4Deserializer.ReadInt(IndexData);
 
             MountPoint = MakeDirectoryFromPath(MountPoint);
-            // Allocate enough memory to hold all entries (and not reallocate while they're being added to it).
-            Files = new FPakEntry[NumEntries];
 
             for (int EntryIndex = 0; EntryIndex < NumEntries; EntryIndex++)
             {
-                // Serialize from memory.
+                // Deserialize from memory.
+                // 1. First the file name (String)
+                final String Filename = UE4Deserializer.Read(IndexData, String.class);
+
+                // 2. And then, the entry
                 final FPakEntry Entry = new FPakEntry();
-                String Filename;
-                Filename = UE4Deserializer.Read(IndexData, String.class);
                 Entry.Deserialize(IndexData, Info.Version);
 
-                // Add new file info.
-                Files[EntryIndex] = Entry;
-
-                // Construct Index of all directories in pak file.
-                String Path = FPaths.GetPath(Filename);
-                Path = MakeDirectoryFromPath(Path);
-                Map<String, FPakEntry> Directory = Index.get(Path);
-                if (Directory != NULL)
-                {
-                    Directory.put(FPaths.GetCleanFilename(Filename), Entry);
-                }
-                else
-                {
-                    Map<String, FPakEntry> NewDirectory = new HashMap<>();
-                    NewDirectory.put(FPaths.GetCleanFilename(Filename), Entry);
-
-                    Index.put(Path, NewDirectory);
-
-                    // add the parent directories up to the mount point
-                    while (!(MountPoint.equals(Path)))
-                    {
-                        Path = FString.Left(Path, Path.length() - 1);
-                        MutableInt Offset = new MutableInt(0);
-                        if (FString.FindLastChar(Path, '/', Offset))
-                        {
-                            Path = FString.Left(Path, Offset.intValue());
-                            Path = MakeDirectoryFromPath(Path);
-                            if (Index.get(Path) == NULL)
-                            {
-                                Index.put(Path, new HashMap<>());
-                            }
-                        }
-                        else
-                        {
-                            Path = MountPoint;
-                        }
-                    }
-                }
+                // Put the entry
+                Entries.put(Filename, Entry);
             }
         }
     }
@@ -294,9 +354,13 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
         }
     }
 
+    private static final long INIIAL_RANDOM_SEED = System.nanoTime();
+
     /**
      * Calculates a SHA1 checksum based on XORed checksum of each entry.
      * This method is very fast and stable and it does not even tries to unpack any data.
+     *
+     * This method is guaranteed to produce stable results every time it ran on identical files.
      *
      * @return 20 bytes of brief SHA1 checksum of the file.
      */
@@ -304,28 +368,30 @@ public class FPakFile implements Iterable<FPakEntry>, AutoCloseable
     @APIBridgeMethod
     public final byte[] BriefChecksumOfContent()
     {
-        // Sort entries by offset to ensure stability
-        final FPakEntry[] EntriesOffsetAscending = Arrays.copyOf(Files, Files.length);
-        Arrays.sort(EntriesOffsetAscending, Comparator.comparingLong(Entry -> Entry.Offset));
-
         // Perform direct allocation to speed-up bulk operations
         // Otherwise, java will fall into byte-merging and will make our bulk operations senseless
         final ByteBuffer ItemBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
         final ByteBuffer MergeBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
 
-        for (final FPakEntry Entry : EntriesOffsetAscending)
+        // Salt generator, generating
+        final Random saltGenerator = new Random(INIIAL_RANDOM_SEED);
+
+        for (Map.Entry<String, FPakEntry> entry : Entries.entrySet())
         {
+            final FPakEntry pakEntry = entry.getValue();
+
+            // Put hash
             ItemBuffer.position(0);
-            ItemBuffer.put(Entry.Hash);
+            ItemBuffer.put(pakEntry.Hash);
 
             // XOR data
             ItemBuffer.position(0);
             MergeBuffer.position(0);
 
             // Perform 3 bulk operations to xor 8+8+4=20 bytes of SHA1
-            final long l0 = MergeBuffer.getLong() ^ ItemBuffer.getLong();
-            final long l1 = MergeBuffer.getLong() ^ ItemBuffer.getLong();
-            final int i0 = MergeBuffer.getInt() ^ ItemBuffer.getInt();
+            final long l0 = MergeBuffer.getLong() ^ ItemBuffer.getLong() ^ saltGenerator.nextLong();
+            final long l1 = MergeBuffer.getLong() ^ ItemBuffer.getLong() ^ saltGenerator.nextLong();
+            final int i0  = MergeBuffer.getInt()  ^ ItemBuffer.getInt()  ^ saltGenerator.nextInt();
 
             // Put back into MergeBuffer
             MergeBuffer.position(0);

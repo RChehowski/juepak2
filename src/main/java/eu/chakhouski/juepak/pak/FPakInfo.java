@@ -16,18 +16,15 @@ import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 @FStruct
 public class FPakInfo
 {
-    // enum
-    // {
-        /**
-         * Magic number to use in header
-         */
-        public static int PakFile_Magic = 0x5A6F12E1;
+    /**
+     * Magic number to use in header
+     */
+    public static int PakFile_Magic = 0x5A6F12E1;
 
-        /**
-         * Size of cached data
-         */
-        public static int MaxChunkDataSize = 64*1024;
-    // }
+    /**
+     * Size of cached data
+     */
+    public static int MaxChunkDataSize = 64*1024;
 
 
     /** Version numbers. */

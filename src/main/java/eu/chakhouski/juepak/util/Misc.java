@@ -1,19 +1,8 @@
 package eu.chakhouski.juepak.util;
 
-import eu.chakhouski.juepak.annotations.Operator;
-
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc
 {
-    public static Object NULL = null;
-
-
     /**
      * Just a wrapper for java string making for us possible to keep the UE4 convention.
      *
