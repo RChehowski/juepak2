@@ -34,7 +34,6 @@ public class Sizeof
     }
 
 
-
     @SuppressWarnings("unused")
     public static int sizeof(boolean $) { return Byte.BYTES; }
 
@@ -60,17 +59,18 @@ public class Sizeof
     public static int sizeof(double $)  { return Double.BYTES; }
 
 
-    public static int sizeof(boolean[] a) { return Byte.BYTES * a.length; }
-    public static int sizeof(byte[] a)    { return Byte.BYTES * a.length; }
+    public static int sizeof(boolean[] a) { return a.length * Byte.BYTES; }
+    public static int sizeof(byte[] a)    { return a.length * Byte.BYTES; }
 
-    public static int sizeof(short[] a)   { return Short.BYTES * a.length; }
-    public static int sizeof(char[] a)    { return Character.BYTES * a.length; }
+    public static int sizeof(short[] a)   { return a.length * Short.BYTES; }
+    public static int sizeof(char[] a)    { return a.length * Character.BYTES; }
 
-    public static int sizeof(int[] a)     { return Integer.BYTES * a.length; }
-    public static int sizeof(long[] a)    { return Long.BYTES * a.length; }
+    public static int sizeof(int[] a)     { return a.length * Integer.BYTES; }
+    public static int sizeof(long[] a)    { return a.length * Long.BYTES; }
 
-    public static int sizeof(float[] a)   { return Float.BYTES * a.length; }
-    public static int sizeof(double[] a)  { return Double.BYTES * a.length; }
+    public static int sizeof(float[] a)   { return a.length * Float.BYTES; }
+    public static int sizeof(double[] a)  { return a.length * Double.BYTES; }
+
 
     public static int sizeof(Object object)
     {

@@ -37,14 +37,6 @@ public class Misc
         }
     }
 
-    public static void check(Object expr)
-    {
-        if (!Bool.BOOL(expr))
-        {
-            throw new RuntimeException();
-        }
-    }
-
     /**
      * Generates a random value between 0 and {@link Short#MAX_VALUE}
      * This is a reference implementation of {@see http://www.cplusplus.com/reference/cstdlib/rand/}.
@@ -55,7 +47,6 @@ public class Misc
     {
         return (int)(Math.random() * (double)0x7fff);
     }
-
 
     /**
      * Converts a long value to int value, raising an exception if a long value was out of bounds.
@@ -89,6 +80,4 @@ public class Misc
     {
         return booleanValue ? (byte)1 : (byte)0;
     }
-
-
 }

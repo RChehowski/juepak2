@@ -4,8 +4,8 @@ import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.util.UE4Deserializer;
-import eu.chakhouski.juepak.util.UEDeserializable;
-import eu.chakhouski.juepak.util.UESerializable;
+import eu.chakhouski.juepak.util.UE4Deserializable;
+import eu.chakhouski.juepak.util.UE4Serializable;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -13,7 +13,7 @@ import java.util.Arrays;
 import static eu.chakhouski.juepak.util.Misc.TEXT;
 
 @FStruct
-public class FGuid implements Comparable<FGuid>, UESerializable, UEDeserializable
+public class FGuid implements Comparable<FGuid>, UE4Serializable, UE4Deserializable
 {
     /** Holds the first component. */
     private int A;

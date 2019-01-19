@@ -216,7 +216,7 @@ public class UE4Deserializer
             final T instance = (T) noArgConstructor.newInstance();
 
             // Deserialize an instance
-            ((UEDeserializable) instance).Deserialize(b);
+            ((UE4Deserializable) instance).Deserialize(b);
 
             // Return an instance
             return instance;
@@ -381,7 +381,7 @@ public class UE4Deserializer
 
             return stringResult;
         }
-        else if (UEDeserializable.class.isAssignableFrom(clazz))
+        else if (UE4Deserializable.class.isAssignableFrom(clazz))
         {
             return ReadObject(b, clazz);
         }

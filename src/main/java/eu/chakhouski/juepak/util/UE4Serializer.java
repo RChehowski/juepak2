@@ -16,14 +16,24 @@ public class UE4Serializer
     private static final CharsetEncoder asciiEncoder = StandardCharsets.US_ASCII.newEncoder();
     private static final CharsetEncoder utf16Encoder = StandardCharsets.UTF_16LE.newEncoder();
 
-
+    /**
+     * Initial encoding buffer size (in characters), long string will be encoded divided by chunks.
+     */
     private static final int ENCODE_BUFFER_SIZE = 255;
 
     private static final CharBuffer srcEncodeBuffer = CharBuffer.allocate(ENCODE_BUFFER_SIZE);
     private static final ByteBuffer dstEncodeBuffer = ByteBuffer.allocate(ENCODE_BUFFER_SIZE * Character.BYTES)
             .order(ByteOrder.nativeOrder());
 
-    public static int GetSerializeSize(String s)
+    /**
+     * Determines the exact number of bytes that can contain a certain string. Takes all possible overheads
+     * into account.
+     * NOTE: This method is synchronized as it uses shared encoders.
+     *
+     * @param s A string, which serialization size is about to be determined.
+     * @return Number of bytes.
+     */
+    public synchronized static int GetSerializeSize(String s)
     {
         int length = 0;
 
@@ -55,11 +65,6 @@ public class UE4Serializer
         return length;
     }
 
-    public static int GetSerializeSize(int ignore)
-    {
-        return Integer.BYTES;
-    }
-
     public static void Write(ByteBuffer b, byte value)
     {
         // Setup byte order
@@ -87,7 +92,7 @@ public class UE4Serializer
         b.putLong(value);
     }
 
-    public static void Write(ByteBuffer b, String value)
+    public static synchronized void Write(ByteBuffer b, String value)
     {
         // Setup byte order
         b.order(ByteOrder.LITTLE_ENDIAN);
@@ -134,7 +139,8 @@ public class UE4Serializer
         }
     }
 
-    public static void Write(ByteBuffer b, Collection<? extends UESerializable> items)
+    @SuppressWarnings("WeakerAccess")
+    public static <T extends UE4Serializable> void Write(ByteBuffer b, Collection<T> items)
     {
         if (items != null)
         {
@@ -143,7 +149,7 @@ public class UE4Serializer
             // Serialize array size
             b.putInt(items.size());
 
-            for (final UESerializable item : items)
+            for (final UE4Serializable item : items)
             {
                 if (item != null)
                     item.Serialize(b);
@@ -151,7 +157,7 @@ public class UE4Serializer
         }
     }
 
-    public static void Write(ByteBuffer b, UESerializable... items)
+    public static void Write(ByteBuffer b, UE4Serializable... items)
     {
         Write(b, Arrays.asList(items));
     }

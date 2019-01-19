@@ -2,9 +2,8 @@ package eu.chakhouski.juepak.pak;
 
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
-import eu.chakhouski.juepak.annotations.Operator;
-import eu.chakhouski.juepak.util.UEDeserializable;
-import eu.chakhouski.juepak.util.UESerializable;
+import eu.chakhouski.juepak.util.UE4Deserializable;
+import eu.chakhouski.juepak.util.UE4Serializable;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -13,18 +12,17 @@ import java.nio.ByteOrder;
  * Struct storing offsets and sizes of a compressed block.
  */
 @FStruct
-public class FPakCompressedBlock implements UESerializable, UEDeserializable
+public class FPakCompressedBlock implements UE4Serializable, UE4Deserializable
 {
     /** Offset of the start of a compression block. Offset is absolute. */
     public long CompressedStart;
     /** Offset of the end of a compression block. This may not align completely with the start of the next block. Offset is absolute. */
     public long CompressedEnd;
 
-
     @SuppressWarnings("unused")
     public FPakCompressedBlock()
     {
-        // For de-serializing purposes
+        // Public no argument constructor for de-serializing purposes
     }
 
     @JavaDecoratorMethod
@@ -32,18 +30,6 @@ public class FPakCompressedBlock implements UESerializable, UEDeserializable
     {
         CompressedStart = compressedStart;
         CompressedEnd = compressedEnd;
-    }
-
-    @Operator("==")
-    private boolean operatorEQ (FPakCompressedBlock B)
-    {
-        return CompressedStart == B.CompressedStart && CompressedEnd == B.CompressedEnd;
-    }
-
-    @Operator("!=")
-    private boolean operatorNEQ (FPakCompressedBlock B)
-    {
-        return !(this.operatorEQ(B));
     }
 
 
@@ -57,7 +43,9 @@ public class FPakCompressedBlock implements UESerializable, UEDeserializable
         if (o == null || getClass() != o.getClass())
             return false;
 
-        return this.operatorEQ((FPakCompressedBlock) o);
+        final FPakCompressedBlock other = (FPakCompressedBlock) o;
+
+        return CompressedStart == other.CompressedStart && CompressedEnd == other.CompressedEnd;
     }
 
     @Override

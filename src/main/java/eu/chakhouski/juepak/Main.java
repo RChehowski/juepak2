@@ -35,8 +35,10 @@ public class Main
         final Packer packer = Packer.builder()
                 .encryptIndex(false)
                 .encryptContent(false)
-                .compressContent(false)
-                .pakVersion(FPakInfo.PakFile_Version_RelativeChunkOffsets)
+                .compressContent(true)
+                .pakVersion(FPakInfo.PakFile_Version_Latest - 2)
+                .customMountPoint("../../../")
+                .archiveFile(archiveFile)
                 .build();
 
         // Packing
@@ -50,17 +52,15 @@ public class Main
         for (Path path : pathsToPack)
             packer.add(path);
 
-        packer.closeAndWrite(archiveFile);
+        packer.close();
 
         // Read (unpack)
         try (final FPakFile fPakFile = new FPakFile(archiveFile.toString()))
         {
-            for (FFileIterator iterator = fPakFile.iterator(); iterator.hasNext(); )
+            for (final FPakFile.Entry entry : fPakFile)
             {
 //                final FPakEntry e = iterator.next();
 //                iterator.extractMixed(extractDirectory);
-
-                final FPakFile.Entry entry = iterator.next();
 
                 System.out.println(entry.toString());
             }

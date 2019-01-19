@@ -4,6 +4,7 @@ import java.util.Arrays;
 
 public class FMemory
 {
+    @SuppressWarnings("UnusedReturnValue")
     public static int Memcmp(byte[] a, byte[] b, int size)
     {
         int cmp = 0;
@@ -14,12 +15,7 @@ public class FMemory
         return cmp;
     }
 
-    public static byte[] Memset(byte[] Dest, byte Char, int Count)
-    {
-        Arrays.fill(Dest, 0, Count, Char);
-        return Dest;
-    }
-
+    @SuppressWarnings("UnusedReturnValue")
     public static byte[] Memset(byte[] Dest, int Int, int Count)
     {
         Arrays.fill(Dest, 0, Count, (byte)Int);
