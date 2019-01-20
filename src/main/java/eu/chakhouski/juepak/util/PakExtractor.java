@@ -1,6 +1,6 @@
 package eu.chakhouski.juepak.util;
 
-import eu.chakhouski.juepak.ECompressionFlags;
+import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.pak.FPakCompressedBlock;
 import eu.chakhouski.juepak.pak.FPakEntry;
 import eu.chakhouski.juepak.pak.FPakFile;
@@ -20,7 +20,7 @@ import java.util.Arrays;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-import static eu.chakhouski.juepak.ECompressionFlags.StaticToString;
+import static eu.chakhouski.juepak.ue4.ECompressionFlags.StaticToString;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;

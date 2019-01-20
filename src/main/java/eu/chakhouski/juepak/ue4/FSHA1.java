@@ -19,7 +19,6 @@ public class FSHA1
         }
     }
 
-
     /**
      * Calculate the hash on a single block and return it
      *
@@ -39,5 +38,10 @@ public class FSHA1
         catch (DigestException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static int GetDigestLength()
+    {
+        return Sha1.getDigestLength();
     }
 }

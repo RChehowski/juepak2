@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak;
+package eu.chakhouski.juepak.ue4;
 
 @SuppressWarnings("SpellCheckingInspection")
 public class ECompressionFlags

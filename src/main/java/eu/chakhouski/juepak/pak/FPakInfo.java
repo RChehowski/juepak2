@@ -4,6 +4,7 @@ import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
+import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
@@ -24,12 +25,13 @@ public class FPakInfo
     /**
      * Size of cached data
      */
-    public static int MaxChunkDataSize = 64*1024;
+    public static int MaxChunkDataSize = 64 * 1024;
 
 
     /** Version numbers. */
     //enum
     //{
+    @SuppressWarnings({"unused", "WeakerAccess"})
     public static int
         PakFile_Version_Initial = 1,
         PakFile_Version_NoTimestamps = 2,
@@ -47,7 +49,6 @@ public class FPakInfo
     // }
 
 
-
     /** Pak file magic value. */
     public int Magic;
     /** Pak file version. */
@@ -58,7 +59,7 @@ public class FPakInfo
     public long IndexSize;
     /** Index SHA1 value. */
     @StaticSize(20)
-    public byte[] IndexHash = new byte[20];
+    public byte[] IndexHash = new byte[FSHA1.GetDigestLength()];
     /** Flag indicating if the pak index has been encrypted. */
     public byte bEncryptedIndex;
     /** Encryption key guid. Empty if we should use the embedded key. */
@@ -73,7 +74,7 @@ public class FPakInfo
 		this.Version = PakFile_Version_Latest;
 		this.IndexOffset = -1;
 		this.IndexSize = 0;
-		this.bEncryptedIndex = 0;
+		//this.bEncryptedIndex = 0;
 
         FMemory.Memset(IndexHash, 0, sizeof(IndexHash));
     }

@@ -147,6 +147,11 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         }
     }
 
+    /**
+     * Random seed used in {@link FPakFile#BriefChecksumOfContent()}
+     */
+    private static final long INITIAL_RANDOM_SEED = System.nanoTime();
+
     /** Pak filename. */
     private final String PakFilename;
     /** Pak file info (trailer). */
@@ -159,7 +164,6 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
     private long CachedTotalSize;
     /** Map of entries */
     private Map<String, FPakEntry> Entries = new LinkedHashMap<>();
-
 
     /**
      * Cached file input stream, closes in {@link #close()}
@@ -218,7 +222,6 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
     {
         CachedTotalSize = channel.size();
 
-
         final ByteBuffer map = ByteBuffer.allocate(toInt(Info.GetSerializedSize(Info.Version)))
                 .order(ByteOrder.LITTLE_ENDIAN);
 
@@ -226,7 +229,6 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 
         channel.position(CachedTotalSize - Info.GetSerializedSize(FIXME_defaultVersion));
         channel.read(map);
-
         map.flip();
 
         Info.Deserialize(map, FIXME_defaultVersion);
@@ -291,7 +293,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
             }
 
             // Check SHA1 value.
-            byte[] IndexHash = new byte[20];
+            byte[] IndexHash = new byte[FSHA1.GetDigestLength()];
             FSHA1.HashBuffer(IndexData.array(), IndexData.capacity(), IndexHash);
 
             if (!Arrays.equals(IndexHash, Info.IndexHash))
@@ -354,8 +356,6 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         }
     }
 
-    private static final long INIIAL_RANDOM_SEED = System.nanoTime();
-
     /**
      * Calculates a SHA1 checksum based on XORed checksum of each entry.
      * This method is very fast and stable and it does not even tries to unpack any data.
@@ -370,11 +370,14 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
     {
         // Perform direct allocation to speed-up bulk operations
         // Otherwise, java will fall into byte-merging and will make our bulk operations senseless
-        final ByteBuffer ItemBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
-        final ByteBuffer MergeBuffer = ByteBuffer.allocateDirect(20).order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer ItemBuffer = ByteBuffer.allocateDirect(FSHA1.GetDigestLength())
+            .order(ByteOrder.LITTLE_ENDIAN);
+
+        final ByteBuffer MergeBuffer = ByteBuffer.allocateDirect(FSHA1.GetDigestLength())
+            .order(ByteOrder.LITTLE_ENDIAN);
 
         // Salt generator, generating
-        final Random saltGenerator = new Random(INIIAL_RANDOM_SEED);
+        final Random saltGenerator = new Random(INITIAL_RANDOM_SEED);
 
         for (Map.Entry<String, FPakEntry> entry : Entries.entrySet())
         {
@@ -388,10 +391,10 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
             ItemBuffer.position(0);
             MergeBuffer.position(0);
 
-            // Perform 3 bulk operations to xor 8+8+4=20 bytes of SHA1
+            // Perform 3 bulk operations to xor 8 + 8 + 4 = 20 bytes of SHA1
             final long l0 = MergeBuffer.getLong() ^ ItemBuffer.getLong() ^ saltGenerator.nextLong();
             final long l1 = MergeBuffer.getLong() ^ ItemBuffer.getLong() ^ saltGenerator.nextLong();
-            final int i0  = MergeBuffer.getInt()  ^ ItemBuffer.getInt()  ^ saltGenerator.nextInt();
+            final int  i0 = MergeBuffer.getInt()  ^ ItemBuffer.getInt()  ^ saltGenerator.nextInt();
 
             // Put back into MergeBuffer
             MergeBuffer.position(0);

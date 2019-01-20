@@ -34,8 +34,6 @@ public class Main
         // Prepare packer
         final Packer packer = Packer.builder()
                 .encryptIndex(false)
-                .encryptContent(false)
-                .compressContent(true)
                 .pakVersion(FPakInfo.PakFile_Version_Latest - 2)
                 .customMountPoint("../../../")
                 .archiveFile(archiveFile)

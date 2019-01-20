@@ -1,11 +1,13 @@
 package eu.chakhouski.juepak.pak;
 
-import eu.chakhouski.juepak.ECompressionFlags;
+import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
+import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FMemory;
+import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
@@ -13,7 +15,7 @@ import eu.chakhouski.juepak.util.UE4Serializer;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import static eu.chakhouski.juepak.ECompressionFlags.COMPRESS_None;
+import static eu.chakhouski.juepak.ue4.ECompressionFlags.COMPRESS_None;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @FStruct
@@ -38,7 +40,8 @@ FPakEntry
     /** Compression method. */
     public int CompressionMethod;
     /** File SHA1 value. */
-    public byte[] Hash = new byte[20];
+    @StaticSize(20)
+    public byte[] Hash = new byte[FSHA1.GetDigestLength()];
     /** Array of compression blocks that describe how to decompress this pak entry. */
     public FPakCompressedBlock[] CompressionBlocks;
     /** Size of a compressed block in the file. */

@@ -6,6 +6,7 @@ import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Deserializable;
 import eu.chakhouski.juepak.util.UE4Serializable;
+import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -158,6 +159,9 @@ public class FGuid implements Comparable<FGuid>, UE4Serializable, UE4Deserializa
     @Override
     public void Serialize(ByteBuffer b)
     {
-
+        UE4Serializer.Write(b, A);
+        UE4Serializer.Write(b, B);
+        UE4Serializer.Write(b, C);
+        UE4Serializer.Write(b, D);
     }
 }
