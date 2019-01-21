@@ -31,7 +31,7 @@ public class FPakInfo
     /** Version numbers. */
     //enum
     //{
-    @SuppressWarnings({"unused", "WeakerAccess"})
+    @SuppressWarnings({"unused"})
     public static int
         PakFile_Version_Initial = 1,
         PakFile_Version_NoTimestamps = 2,
@@ -47,6 +47,44 @@ public class FPakInfo
         PakFile_Version_Latest = PakFile_Version_Last - 1
     ;
     // }
+
+    public static int getPakVersionForEngine(String engineVersion)
+    {
+        final String[] split = engineVersion.split("\\.");
+
+        if (split.length < 2)
+            throw new IllegalArgumentException("Insufficient version number count: " + split.length);
+
+        if (split.length > 3)
+            throw new IllegalArgumentException("Version number overflow: " + split.length);
+
+        // Extract major, min and patch versions
+        final int maj = Integer.valueOf(split[0]);
+        final int min = Integer.valueOf(split[1]);
+        final int ptc = (split.length == 3) ? Integer.valueOf(split[2]) : 0;
+
+        // Restrict negative and invalid items
+        if (maj != 4)
+            throw new IllegalArgumentException("Only UE4 is supported, given: " + "[" + maj + "]." + min + "." + ptc);
+
+        if (min < 0)
+            throw new IllegalArgumentException("Min version is negative, given: " + maj + ".[" + min + "]." + ptc);
+
+        if (ptc < 0)
+            throw new IllegalArgumentException("Patch version is negative, given: " + maj + "." + min + ".[" + ptc + "]");
+
+        // Select version according to https://github.com/EpicGames/UnrealEngine/blob/master/Engine/Source/Runtime/PakFile/Public/IPlatformFilePak.h
+        if (min < 3)
+            return PakFile_Version_NoTimestamps;
+        else if (min < 16)
+            return PakFile_Version_CompressionEncryption;
+        else if (min < 20)
+            return PakFile_Version_IndexEncryption;
+        else if (min < 21)
+            return PakFile_Version_RelativeChunkOffsets;
+        else
+            return PakFile_Version_Latest;
+    }
 
 
     /** Pak file magic value. */

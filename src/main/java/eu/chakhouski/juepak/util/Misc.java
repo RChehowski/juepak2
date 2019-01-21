@@ -1,5 +1,12 @@
 package eu.chakhouski.juepak.util;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.StringJoiner;
+
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc
 {
@@ -79,5 +86,46 @@ public class Misc
     public static byte toByte(final boolean booleanValue)
     {
         return booleanValue ? (byte)1 : (byte)0;
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    static void deleteFiles(Collection<File> tempFiles)
+    {
+        List<String> deleteFailures = Collections.emptyList();
+
+        for (File file : tempFiles)
+        {
+            if (file != null)
+            {
+                final String name = file.getName();
+
+                final boolean ableToDelete = file.delete();
+                if (!ableToDelete)
+                {
+                    if (deleteFailures == Collections.EMPTY_LIST)
+                        deleteFailures = new ArrayList<>();
+
+                    deleteFailures.add("Unable to delete \"" + name + "\"");
+                }
+            }
+            else
+            {
+                if (deleteFailures == Collections.EMPTY_LIST)
+                    deleteFailures = new ArrayList<>();
+
+                deleteFailures.add("File is null, unable to delete");
+            }
+        }
+
+        // Display message if some deleteFailures (delete deleteFailures are non-fatal?)
+        if (!deleteFailures.isEmpty())
+        {
+            final StringJoiner sj = new StringJoiner(System.lineSeparator());
+
+            sj.add("Some error(s) occurred deleting temporary files:");
+
+            for (String failure : deleteFailures)
+                sj.add(" >" + failure);
+        }
     }
 }

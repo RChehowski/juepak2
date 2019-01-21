@@ -408,4 +408,23 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 
         return Result;
     }
+
+
+    @Override
+    public int hashCode()
+    {
+        return Arrays.hashCode(BriefChecksumOfContent());
+    }
+
+    @Override
+    public String toString()
+    {
+        return "FPakFile{" +
+            "PakFilename='" + PakFilename + '\'' +
+            ", Info=" + Info +
+            ", MountPoint='" + MountPoint + '\'' +
+            ", NumEntries=" + NumEntries +
+            ", CachedTotalSize=" + CachedTotalSize +
+        '}';
+    }
 }
