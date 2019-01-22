@@ -17,6 +17,7 @@ import java.nio.channels.FileChannel.MapMode;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
+import java.util.function.DoubleConsumer;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -48,9 +49,14 @@ public class PakExtractor
     private static final ByteBuffer dstBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize);
 
 
-    public synchronized static void Extract(FPakFile PakFile, FPakEntry Entry, WritableByteChannel DestChannel)
-            throws IOException
+    public synchronized static void Extract(FPakFile PakFile, FPakEntry Entry, WritableByteChannel DestChannel,
+                                            DoubleConsumer progressConsumer) throws IOException
     {
+        if (progressConsumer != null)
+        {
+            progressConsumer.accept(.0);
+        }
+
         final FPakInfo PakInfo = PakFile.GetInfo();
         final FileInputStream PakInputStream = PakFile.InputStream;
 
@@ -81,13 +87,15 @@ public class PakExtractor
             FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
         }
 
+        final long entrySize = Entry.Size;
+
         // Choose compression method and extract
         switch (Entry.CompressionMethod)
         {
             case ECompressionFlags.COMPRESS_None:
             {
                 long Offset = Entry.Offset + EntrySerializedSize;
-                long BytesRemaining = Entry.UncompressedSize;
+                long BytesRemaining = entrySize;
 
                 while (BytesRemaining > 0)
                 {
@@ -97,11 +105,19 @@ public class PakExtractor
 
                     Offset += BytesToRead;
                     BytesRemaining -= BytesToRead;
+
+                    // Report progress
+                    if (progressConsumer != null)
+                    {
+                        progressConsumer.accept((double)(entrySize - BytesRemaining) / entrySize);
+                    }
                 }
                 break;
             }
             case ECompressionFlags.COMPRESS_ZLIB:
             {
+                long bytesProcessed = 0;
+
                 for (final FPakCompressedBlock Block : Entry.CompressionBlocks)
                 {
                     final long GlobalOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
@@ -109,6 +125,14 @@ public class PakExtractor
                     final long BytesToRead = Block.CompressedEnd - Block.CompressedStart;
 
                     ExtractBlock(SourceChannel, DestChannel, Offset, (int) BytesToRead, bEntryIsEncrypted, true);
+
+                    bytesProcessed += (Block.CompressedEnd - Block.CompressedStart);
+
+                    // Report progress
+                    if (progressConsumer != null)
+                    {
+                        progressConsumer.accept((double)bytesProcessed / entrySize);
+                    }
                 }
                 break;
             }

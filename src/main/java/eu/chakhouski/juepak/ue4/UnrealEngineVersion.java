@@ -8,8 +8,10 @@ public final class UnrealEngineVersion implements Comparable<UnrealEngineVersion
     private final int min;
     private final int ptc;
 
-    private static final UnrealEngineVersion minVersion = new UnrealEngineVersion(4, 0, 0);
-    private static final UnrealEngineVersion maxVersion = new UnrealEngineVersion(4, Integer.MAX_VALUE, Integer.MAX_VALUE);
+    private static final UnrealEngineVersion minVersion
+            = new UnrealEngineVersion(4, 0, 0);
+    private static final UnrealEngineVersion maxVersion
+            = new UnrealEngineVersion(4, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
     UnrealEngineVersion(int maj, int min, int ptc)
     {

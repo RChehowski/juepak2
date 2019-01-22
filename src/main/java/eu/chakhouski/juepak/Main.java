@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.DoubleConsumer;
 import java.util.stream.Collectors;
 
 public class Main
@@ -23,10 +24,6 @@ public class Main
 
     public static void main(String[] args) throws Exception
     {
-//        final int test = PakVersion.getByEngineVersion("4.16");
-//        System.out.println(test);
-
-
         FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes ->
         {
             final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
@@ -36,7 +33,7 @@ public class Main
         // Prepare packer
         final Packer packer = Packer.builder()
                 .encryptIndex(true)
-                .engineVersion("3.20")
+                .engineVersion("4.20")
                 .customMountPoint("../../../")
                 .archiveFile(archiveFile)
                 .build();
@@ -65,7 +62,9 @@ public class Main
             for (final FPakFile.Entry entry : fPakFile)
             {
 //                final FPakEntry e = iterator.next();
-                entry.extractMixed(extractDirectory);
+                entry.extractMixed(extractDirectory, value -> {
+                    System.out.println("Extracting " + entry.Filename + " progress: " + value);
+                });
 
                 System.out.println(entry.toString());
             }

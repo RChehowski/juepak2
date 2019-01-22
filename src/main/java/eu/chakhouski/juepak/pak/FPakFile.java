@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.function.DoubleConsumer;
 
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;
@@ -68,13 +69,13 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 
         // *** API bridge ***
         @APIBridgeMethod
-        public void extractMixed(String RootPath) throws IOException
+        public void extractMixed(String RootPath, DoubleConsumer progressConsumer) throws IOException
         {
-            extractMixed(Paths.get(RootPath));
+            extractMixed(Paths.get(RootPath), progressConsumer);
         }
 
         @APIBridgeMethod
-        public void extractMixed(Path RootPath) throws IOException
+        public void extractMixed(Path RootPath, DoubleConsumer progressConsumer) throws IOException
         {
             final Path AbsolutePath = RootPath.resolve(Filename);
             final Path AbsoluteDir = AbsolutePath.getParent();
@@ -88,7 +89,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
             // Extract to file channel
             try (final FileOutputStream FileOS = new FileOutputStream(AbsolutePath.toFile()))
             {
-                PakExtractor.Extract(pakFile, Entry, Channels.newChannel(FileOS));
+                PakExtractor.Extract(pakFile, Entry, Channels.newChannel(FileOS), progressConsumer);
             }
         }
 //
@@ -417,6 +418,34 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         MergeBuffer.get(Result);
 
         return Result;
+    }
+
+    @APIBridgeMethod
+    public final long getSize()
+    {
+        long size = 0;
+
+        for (Entry e : this)
+        {
+            final FPakEntry pakEntry = e.Entry;
+            size += pakEntry.Size;
+        }
+
+        return size;
+    }
+
+    @APIBridgeMethod
+    public final long getUncompressedSize()
+    {
+        long size = 0;
+
+        for (Entry e : this)
+        {
+            final FPakEntry pakEntry = e.Entry;
+            size += pakEntry.UncompressedSize;
+        }
+
+        return size;
     }
 
 

@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.function.DoubleConsumer;
 
 @SuppressWarnings("FieldCanBeLocal")
 public class Misc
@@ -126,6 +127,14 @@ public class Misc
 
             for (String failure : deleteFailures)
                 sj.add(" >" + failure);
+        }
+    }
+
+    public static void callConsumerSaturated(DoubleConsumer consumer, double value)
+    {
+        if (consumer != null)
+        {
+            consumer.accept(Math.max(Math.min(value, 1.0), 0.0));
         }
     }
 }
