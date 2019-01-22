@@ -6,29 +6,31 @@ import java.util.Objects;
 
 public final class FFileIterator implements Iterator<FPakFile.Entry>
 {
-    private final Iterator<Map.Entry<String, FPakEntry>> underlyingIterator;
+    private final Iterator<Map.Entry<String, FPakEntry>> iterator;
+    private final FPakFile pakFile;
 
-    FFileIterator(FPakFile InPakFile)
+    FFileIterator(FPakFile pakFile)
     {
-        final Map<String, FPakEntry> entries = InPakFile.GetEntries();
+        final Map<String, FPakEntry> entries = pakFile.GetEntries();
 
-        underlyingIterator = entries.entrySet().iterator();
+        this.pakFile = pakFile;
+        this.iterator = entries.entrySet().iterator();
     }
 
     @Override
     public boolean hasNext()
     {
-        Objects.requireNonNull(underlyingIterator, getNoIteratorMessage());
+        Objects.requireNonNull(iterator, getNoIteratorMessage());
 
-        return underlyingIterator.hasNext();
+        return iterator.hasNext();
     }
 
     @Override
     public final FPakFile.Entry next()
     {
-        Objects.requireNonNull(underlyingIterator, getNoIteratorMessage());
+        Objects.requireNonNull(iterator, getNoIteratorMessage());
 
-        return new FPakFile.Entry(underlyingIterator.next());
+        return new FPakFile.Entry(iterator.next(), pakFile);
     }
 
 

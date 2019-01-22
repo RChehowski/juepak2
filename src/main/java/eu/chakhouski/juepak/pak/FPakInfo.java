@@ -27,12 +27,9 @@ public class FPakInfo
      */
     public static int MaxChunkDataSize = 64 * 1024;
 
-
     /** Version numbers. */
-    //enum
-    //{
-    @SuppressWarnings({"unused"})
-    public static int
+    @SuppressWarnings({"unused", "WeakerAccess", "RedundantSuppression"})
+    public static final int
         PakFile_Version_Initial = 1,
         PakFile_Version_NoTimestamps = 2,
         PakFile_Version_CompressionEncryption = 3,
@@ -46,45 +43,73 @@ public class FPakInfo
         PakFile_Version_Invalid = 9,
         PakFile_Version_Latest = PakFile_Version_Last - 1
     ;
-    // }
 
-    public static int getPakVersionForEngine(String engineVersion)
+    public static String pakFileVersionToString(int version)
     {
-        final String[] split = engineVersion.split("\\.");
+        switch (version)
+        {
+            case PakFile_Version_Initial:
+                return "PakFile_Version_Initial";
+            case PakFile_Version_NoTimestamps:
+                return "PakFile_Version_NoTimestamps";
+            case PakFile_Version_CompressionEncryption:
+                return "PakFile_Version_CompressionEncryption";
+            case PakFile_Version_IndexEncryption:
+                return "PakFile_Version_IndexEncryption";
+            case PakFile_Version_RelativeChunkOffsets:
+                return "PakFile_Version_RelativeChunkOffsets";
+            case PakFile_Version_DeleteRecords:
+                return "PakFile_Version_DeleteRecords";
+            case PakFile_Version_EncryptionKeyGuid:
+                return "PakFile_Version_EncryptionKeyGuid";
 
-        if (split.length < 2)
-            throw new IllegalArgumentException("Insufficient version number count: " + split.length);
 
-        if (split.length > 3)
-            throw new IllegalArgumentException("Version number overflow: " + split.length);
+            case PakFile_Version_Last:
+                return "PakFile_Version_Last";
+            case PakFile_Version_Invalid:
+                return "PakFile_Version_Invalid";
+        }
 
-        // Extract major, min and patch versions
-        final int maj = Integer.valueOf(split[0]);
-        final int min = Integer.valueOf(split[1]);
-        final int ptc = (split.length == 3) ? Integer.valueOf(split[2]) : 0;
-
-        // Restrict negative and invalid items
-        if (maj != 4)
-            throw new IllegalArgumentException("Only UE4 is supported, given: " + "[" + maj + "]." + min + "." + ptc);
-
-        if (min < 0)
-            throw new IllegalArgumentException("Min version is negative, given: " + maj + ".[" + min + "]." + ptc);
-
-        if (ptc < 0)
-            throw new IllegalArgumentException("Patch version is negative, given: " + maj + "." + min + ".[" + ptc + "]");
-
-        // Select version according to https://github.com/EpicGames/UnrealEngine/blob/master/Engine/Source/Runtime/PakFile/Public/IPlatformFilePak.h
-        if (min < 3)
-            return PakFile_Version_NoTimestamps;
-        else if (min < 16)
-            return PakFile_Version_CompressionEncryption;
-        else if (min < 20)
-            return PakFile_Version_IndexEncryption;
-        else if (min < 21)
-            return PakFile_Version_RelativeChunkOffsets;
-        else
-            return PakFile_Version_Latest;
+        return "Unknown";
     }
+
+//    public static int getPakVersionForEngine(String engineVersion)
+//    {
+//        final String[] split = engineVersion.split("\\.");
+//
+//        if (split.length < 2)
+//            throw new IllegalArgumentException("Insufficient version number count: " + split.length);
+//
+//        if (split.length > 3)
+//            throw new IllegalArgumentException("Version number overflow: " + split.length);
+//
+//        // Extract major, min and patch versions
+//        final int maj = Integer.valueOf(split[0]);
+//        final int min = Integer.valueOf(split[1]);
+//        final int ptc = (split.length == 3) ? Integer.valueOf(split[2]) : 0;
+//
+//        // Restrict negative and invalid items
+//        if (maj != 4)
+//            throw new IllegalArgumentException("Only UE4 is supported, given: " + "[" + maj + "]." + min + "." + ptc);
+//
+//        if (min < 0)
+//            throw new IllegalArgumentException("Min version is negative, given: " + maj + ".[" + min + "]." + ptc);
+//
+//        if (ptc < 0)
+//            throw new IllegalArgumentException("Patch version is negative, given: " + maj + "." + min + ".[" + ptc + "]");
+//
+//        // Select version according to https://github.com/EpicGames/UnrealEngine/blob/master/Engine/Source/Runtime/PakFile/Public/IPlatformFilePak.h
+//        if (min < 3)
+//            return PakFile_Version_NoTimestamps;
+//        else if (min < 16)
+//            return PakFile_Version_CompressionEncryption;
+//        else if (min < 20)
+//            return PakFile_Version_IndexEncryption;
+//        else if (min < 21)
+//            return PakFile_Version_RelativeChunkOffsets;
+//        else
+//            return PakFile_Version_Latest;
+//    }
 
 
     /** Pak file magic value. */

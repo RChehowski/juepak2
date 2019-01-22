@@ -8,6 +8,8 @@ import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMath;
 import eu.chakhouski.juepak.ue4.FSHA1;
+import eu.chakhouski.juepak.ue4.PakVersion;
+import eu.chakhouski.juepak.ue4.UnrealEngineVersion;
 
 import java.io.Closeable;
 import java.io.File;
@@ -61,7 +63,7 @@ public class Packer implements Closeable
             return defaultParameters;
         }
 
-        public PackParameters encrypted()
+        public PackParameters encrypt()
         {
             encrypt = true;
             return this;
@@ -107,7 +109,7 @@ public class Packer implements Closeable
         }
 
         public PackerSetup engineVersion(String value) {
-            pakVersion = FPakInfo.getPakVersionForEngine(value);
+            pakVersion = PakVersion.getByEngineVersion(value);
             return this;
         }
 
@@ -123,7 +125,15 @@ public class Packer implements Closeable
 
 
 
-        public Packer build() {
+        public Packer build()
+        {
+            // Check whether the user requested index encryption but the feature is not supported.
+            if ((pakVersion < FPakInfo.PakFile_Version_IndexEncryption) && encryptIndex)
+            {
+                throw new IllegalStateException("Unable to encrypt index, feature is not supported. Pak version is " +
+                        FPakInfo.pakFileVersionToString(pakVersion));
+            }
+
             return new Packer(this);
         }
     }
@@ -457,9 +467,6 @@ public class Packer implements Closeable
                 int bytesReadPerTransmission;
                 while ((bytesWrittenPerBlock < WRITE_SIZE_DELTA) && ((bytesReadPerTransmission = is.read(readBuffer)) > 0))
                 {
-                    // Update hash with raw, not deflated, not encrypted file data
-                    sha1.update(readBuffer, 0, bytesReadPerTransmission);
-
                     // Deflate until done
                     deflater.setInput(readBuffer, 0, bytesReadPerTransmission);
                     while (!deflater.needsInput())
@@ -487,6 +494,12 @@ public class Packer implements Closeable
                     deflater.finish();
                     bytesWrittenPerBlock += deflater.deflate(blockBuffer, bytesWrittenPerBlock, bytesRemaining);
 
+                    // NOT
+                    // Update hash with deflated, not encrypted file data
+                    // NOT
+                    sha1.update(blockBuffer, 0, bytesWrittenPerBlock);
+
+
                     // Determine final chunk size to write
                     final int sizeToWrite = encrypt ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesWrittenPerBlock;
 
@@ -498,7 +511,7 @@ public class Packer implements Closeable
                     // Append zeroes, instead of garbage to data space, lost due to AES block alignment.
                     if (bytesWrittenPerBlock != sizeToWrite)
                     {
-                        Arrays.fill(blockBuffer, bytesReadPerBlock, sizeToWrite, (byte) 0);
+                        Arrays.fill(blockBuffer, bytesWrittenPerBlock, sizeToWrite, (byte) 0);
                     }
 
                     if (encrypt)

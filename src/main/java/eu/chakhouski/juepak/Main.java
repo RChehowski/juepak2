@@ -2,6 +2,7 @@ package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
+import eu.chakhouski.juepak.ue4.PakVersion;
 import eu.chakhouski.juepak.util.Packer;
 
 import java.nio.file.Files;
@@ -9,12 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 public class Main
 {
-    private static final String extractDirectory = "C:\\Users\\ASUS\\Desktop\\Extract";
+    private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
     private static final String packingDirectory = "/Volumes/Samsung/Projects/UnrealEngine/Samples/StarterContent/Content/StarterContent/Maps";
 
 
@@ -23,6 +23,10 @@ public class Main
 
     public static void main(String[] args) throws Exception
     {
+//        final int test = PakVersion.getByEngineVersion("4.16");
+//        System.out.println(test);
+
+
         FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes ->
         {
             final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
@@ -31,8 +35,8 @@ public class Main
 
         // Prepare packer
         final Packer packer = Packer.builder()
-                .encryptIndex(false)
-                .engineVersion("4.20")
+                .encryptIndex(true)
+                .engineVersion("3.20")
                 .customMountPoint("../../../")
                 .archiveFile(archiveFile)
                 .build();
@@ -46,7 +50,7 @@ public class Main
 
         // Add files to pack
         for (Path path : pathsToPack)
-            packer.add(path, new Packer.PackParameters().compress());
+            packer.add(path, new Packer.PackParameters().compress().encrypt());
 
 
         packer.addProgressListener(p -> System.out.println("Progress is: " + p));
@@ -61,7 +65,7 @@ public class Main
             for (final FPakFile.Entry entry : fPakFile)
             {
 //                final FPakEntry e = iterator.next();
-//                iterator.extractMixed(extractDirectory);
+                entry.extractMixed(extractDirectory);
 
                 System.out.println(entry.toString());
             }

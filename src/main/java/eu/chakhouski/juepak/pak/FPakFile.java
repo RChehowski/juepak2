@@ -8,14 +8,20 @@ import eu.chakhouski.juepak.ue4.FCoreDelegates.FPakEncryptionKeyDelegate;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
+import eu.chakhouski.juepak.util.PakExtractor;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,43 +50,47 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         public final String Filename;
         public final FPakEntry Entry;
 
+        private final FPakFile pakFile;
 
-        public Entry(String filename, FPakEntry entry)
+
+        public Entry(String filename, FPakEntry entry, FPakFile pakFile)
         {
             Filename = filename;
             Entry = entry;
+
+            this.pakFile = pakFile;
         }
 
-        public Entry(Map.Entry<? extends String, ? extends FPakEntry> mapEntry)
+        public Entry(Map.Entry<? extends String, ? extends FPakEntry> mapEntry, FPakFile pakFile)
         {
-            this(mapEntry.getKey(), mapEntry.getValue());
+            this(mapEntry.getKey(), mapEntry.getValue(), pakFile);
         }
 
         // *** API bridge ***
-//        @APIBridgeMethod
-//        public void extractMixed(String RootPath) throws IOException
-//        {
-//            extractMixed(Paths.get(RootPath));
-//        }
+        @APIBridgeMethod
+        public void extractMixed(String RootPath) throws IOException
+        {
+            extractMixed(Paths.get(RootPath));
+        }
 
-//        @APIBridgeMethod
-//        public void extractMixed(Path RootPath) throws IOException
-//        {
-//            final Path AbsolutePath = RootPath.resolve(Filename);
-//            final Path AbsoluteDir = AbsolutePath.getParent();
-//
-//            // Create a directory if none yet
-//            if (!Files.isDirectory(AbsoluteDir))
-//            {
-//                Files.createDirectories(AbsoluteDir);
-//            }
-//
-//            // Extract to file channel
-//            try (final FileOutputStream FileOS = new FileOutputStream(AbsolutePath.toFile()))
-//            {
-//                PakExtractor.Extract(PakFile, Entry, Channels.newChannel(FileOS));
-//            }
-//        }
+        @APIBridgeMethod
+        public void extractMixed(Path RootPath) throws IOException
+        {
+            final Path AbsolutePath = RootPath.resolve(Filename);
+            final Path AbsoluteDir = AbsolutePath.getParent();
+
+            // Create a directory if none yet
+            if (!Files.isDirectory(AbsoluteDir))
+            {
+                Files.createDirectories(AbsoluteDir);
+            }
+
+            // Extract to file channel
+            try (final FileOutputStream FileOS = new FileOutputStream(AbsolutePath.toFile()))
+            {
+                PakExtractor.Extract(pakFile, Entry, Channels.newChannel(FileOS));
+            }
+        }
 //
 //        @APIBridgeMethod
 //        public void extractToMemory(final byte[] buffer) throws IOException
