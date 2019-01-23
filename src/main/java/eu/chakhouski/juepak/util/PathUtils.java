@@ -103,19 +103,26 @@ public class PathUtils
         int maxMatches = basePathNameCount;
 
         // Iterate trough path finding minimal similarity
-        for (int i = indexOfBasePath + 1; (i < numPaths); i++)
+        for (int i = indexOfBasePath; (i < numPaths); i++)
         {
             final Path p = paths[i];
             if ((p != null))
             {
-                if (commonRoot.equals(p.getRoot()))
+                final Path otherRoot = p.getRoot();
+
+                if (commonRoot.equals(otherRoot))
                 {
                     final int minLength = Math.min(basePathNameCount, p.getNameCount());
+
+                    maxMatches = Math.min(maxMatches, minLength);
 
                     // Common root is still the same, compare parts
                     for (int j = 0; j < minLength; j++)
                     {
-                        if (!basePath.getName(j).equals(p.getName(j)))
+                        final Path baseNamePart = basePath.getName(j);
+                        final Path otherNamePart = p.getName(j);
+
+                        if (!baseNamePart.equals(otherNamePart))
                         {
                             // Found minimum, compare and quit loop
                             maxMatches = Math.min(maxMatches, j);
