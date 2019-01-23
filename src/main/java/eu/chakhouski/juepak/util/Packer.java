@@ -27,7 +27,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -460,7 +459,6 @@ public class Packer implements Closeable
             throws IOException
     {
         final long beginPosition = os.position();
-        final FPakEntry e = new FPakEntry();
 
         if (encrypt)
         {
@@ -479,6 +477,7 @@ public class Packer implements Closeable
         }
 
         // Set entry
+        final FPakEntry e = new FPakEntry();
         e.Offset = beginPosition;
         e.Size = compressedSize.longValue();
         e.UncompressedSize = uncompressedSize.longValue();
@@ -508,66 +507,92 @@ public class Packer implements Closeable
             relativeChunkOffset += chunkLength;
         }
 
-        // WRITE Create and write the pak entry
-        final ByteBuffer entryBuffer = ByteBuffer.allocate(toInt(pakEntrySize))
-                .order(ByteOrder.LITTLE_ENDIAN);
+        // WRITE DUMMY Create and write the pak entry
+        final ByteBuffer entryBuffer = ByteBuffer.allocate(toInt(pakEntrySize)).order(ByteOrder.LITTLE_ENDIAN);
+        os.write((ByteBuffer)entryBuffer.position(0).limit(toInt(pakEntrySize)));
 
-        e.Serialize(entryBuffer, setup.pakVersion);
-        os.write((ByteBuffer)entryBuffer.flip());
+        //
+        sha1.reset();
 
         // WRITE contents (chunks)
         final ByteBuffer blockBuffer = ByteBuffer.allocate(MAX_COMPRESSED_BUFFER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
 
-        for (final Iterator<File> it = compressedTempFiles.iterator(); it.hasNext(); )
+        for (final File blockFile : compressedTempFiles)
         {
-            final File blockFile = it.next();
-
             long blockBytesRemaining = blockFile.length();
-
             try (final FileInputStream tis = new FileInputStream(blockFile))
             {
                 while (blockBytesRemaining > 0)
                 {
                     final int bufferSpace = blockBuffer.capacity() - blockBuffer.position();
-
-                    // Check the buffer is full
                     if (bufferSpace == 0)
                     {
-                        os.write((ByteBuffer) blockBuffer.flip());
+                        blockBuffer.flip();
 
+                        // Encrypt if necessary and update sha1
+                        if (encrypt)
+                            FAES.EncryptData(blockBuffer.array(), blockBuffer.limit(), SharedKeyBytes);
+                        sha1.update(blockBuffer.array(), 0, blockBuffer.limit());
 
-                        // TODO: Update sha1
+                        os.write(blockBuffer);
+                        blockBuffer.flip();
                     }
 
                     final int bytesRead = tis.read(blockBuffer.array(), blockBuffer.position(), bufferSpace);
                     blockBuffer.position(blockBuffer.position() + bytesRead);
-
                     blockBytesRemaining -= bytesRead;
                 }
             }
 
-
-
-
-
-
-//            try (final FileInputStream tis = new FileInputStream(blockFile))
-//            {
-//                final int numBytesRead = tis.read(blockBuffer.array());
-//
-//                // Limit the buffer
-//                blockBuffer.position(0).limit(numBytesRead);
-//            }
-//
-//            os.write(blockBuffer);
-//
-//            // Delete temporary file and weakly check
-//            if (!blockFile.delete())
-//                System.err.println("Warning: unable to delete: " + blockFile.toString());
-//
-//            // Remove from collection
-//            it.remove();
+            blockFile.delete();
         }
+
+        if (blockBuffer.position() > 0)
+        {
+            if (encrypt)
+            {
+                final int alignedSize = Align(blockBuffer.position(), FAES.getBlockSize());
+
+                Arrays.fill(blockBuffer.array(), blockBuffer.position(), alignedSize, (byte) 0);
+                blockBuffer.position(alignedSize);
+            }
+
+            blockBuffer.flip();
+
+            // Encrypt if necessary and update sha1
+            try
+            {
+                if (encrypt)
+                    FAES.EncryptData(blockBuffer.array(), blockBuffer.limit(), SharedKeyBytes);
+                sha1.update(blockBuffer.array(), 0, blockBuffer.limit());
+            }
+            catch (Exception eee)
+            {
+                System.out.println(eee);
+            }
+
+            os.write(blockBuffer);
+            blockBuffer.flip();
+        }
+
+        try {
+            sha1.digest(e.Hash, 0, FSHA1.GetDigestLength());
+        }
+        catch (DigestException dex) {
+            throw new IOException(dex.getMessage());
+        }
+
+        // WRITE a real entry
+        os.position(beginPosition);
+
+        entryBuffer.flip();
+        e.Serialize(entryBuffer, setup.pakVersion);
+
+        entryBuffer.flip();
+        os.write(entryBuffer);
+
+        // Go to the end
+        os.position(os.size());
 
         return e;
     }

@@ -15,11 +15,11 @@ import java.util.stream.Collectors;
 
 public class Main
 {
-    private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
-    private static final String packingDirectory = "/Volumes/Samsung/Projects/UnrealEngine/Samples/StarterContent/Content/StarterContent/Maps";
+    private static final String extractDirectory = "C:\\Users\\ASUS\\Desktop\\Extract";
+    private static final String packingDirectory = "C:\\Users\\ASUS\\Pictures";
 
 
-    private static final Path archiveFile = Paths.get("/Users/netherwire/Desktop/Archive.pak");
+    private static final Path archiveFile = Paths.get("C:\\Users\\ASUS\\Desktop\\Archive.pak");
 
 
     public static void main(String[] args) throws Exception
@@ -50,7 +50,9 @@ public class Main
             packer.add(path, new Packer.PackParameters().compress().encrypt());
 
 
-        packer.addProgressListener(p -> System.out.println("Progress is: " + p));
+        packer.addProgressListener(p -> {
+            System.out.printf("Progress is: %f\n", p);
+        });
 
         packer.close();
 
