@@ -2,34 +2,46 @@ package eu.chakhouski.juepak;
 
 import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.ue4.PakVersion;
 import eu.chakhouski.juepak.util.Packer;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.List;
-import java.util.function.DoubleConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class Main
 {
-    private static final String extractDirectory = "C:\\Users\\ASUS\\Desktop\\Extract";
-    private static final String packingDirectory = "C:\\Users\\ASUS\\Pictures";
+    private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
+    private static final String packingDirectory = "/Volumes/Samsung/Projects/UnrealEngine/Samples/StarterContent/Content/StarterContent/Maps";
 
 
-    private static final Path archiveFile = Paths.get("C:\\Users\\ASUS\\Desktop\\Archive.pak");
+    private static final Path archiveFile = Paths.get("/Users/netherwire/Desktop/Archive.pak");
 
 
     public static void main(String[] args) throws Exception
     {
-        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(bytes ->
+        FCoreDelegates.GetPakEncryptionKeyDelegate().BindLambda(new Consumer<byte[]>()
         {
-            final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
-            System.arraycopy(decode, 0, bytes, 0, bytes.length);
+            private final byte[] decode = Base64.getDecoder().decode("55K1xvTGDiR9Sz1lQtY/eCDOIIHvsVyIg1WGXRvUh58=");
+
+            @Override
+            public void accept(byte[] bytes)
+            {
+                System.arraycopy(decode, 0, bytes, 0, bytes.length);
+            }
         });
 
+
+        compressDecompress();
+
+    }
+
+    private static void compressDecompress() throws IOException
+    {
         // Prepare packer
         final Packer packer = Packer.builder()
                 .encryptIndex(true)
@@ -47,13 +59,10 @@ public class Main
 
         // Add files to pack
         for (Path path : pathsToPack)
-            packer.add(path, new Packer.PackParameters().compress().encrypt());
+            packer.add(path, new Packer.PackParameters().encrypt());
 
 
-        packer.addProgressListener(p -> {
-            System.out.printf("Progress is: %f\n", p);
-        });
-
+        packer.addProgressListener(p -> System.out.println("Progress is: " + p));
         packer.close();
 
         // Read (unpack)
@@ -64,7 +73,8 @@ public class Main
             for (final FPakFile.Entry entry : fPakFile)
             {
 //                final FPakEntry e = iterator.next();
-                entry.extractMixed(extractDirectory, value -> {
+                entry.extractMixed(extractDirectory, value ->
+                {
                     System.out.println("Extracting " + entry.Filename + " progress: " + value);
                 });
 
