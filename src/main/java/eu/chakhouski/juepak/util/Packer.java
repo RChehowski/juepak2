@@ -46,10 +46,10 @@ public class Packer implements Closeable
      * Max compressed buffer size according to UE4 spec
      */
     private static final int MAX_COMPRESSED_BUFFER_SIZE = 64 * 1024;
-    private static final int DEFLATE_READ_BUFFER_LENGTH = 512;
-    private static final int DEFLATE_MAX_FOOTER_LENGTH = 16;
-    private static final int WRITE_SIZE_DELTA = MAX_COMPRESSED_BUFFER_SIZE -
-            DEFLATE_READ_BUFFER_LENGTH - DEFLATE_MAX_FOOTER_LENGTH;
+//    private static final int DEFLATE_READ_BUFFER_LENGTH = MAX_COMPRESSED_BUFFER_SIZE * 2;
+//    private static final int DEFLATE_MAX_FOOTER_LENGTH = 16;
+//    private static final int WRITE_SIZE_DELTA = MAX_COMPRESSED_BUFFER_SIZE -
+//            DEFLATE_READ_BUFFER_LENGTH - DEFLATE_MAX_FOOTER_LENGTH;
     /**
      * sha1 digest instance
      */
@@ -69,7 +69,7 @@ public class Packer implements Closeable
     /**
      * Small raw data buffer.
      */
-    private final byte[] sharedDeflateReadBuffer = new byte[DEFLATE_READ_BUFFER_LENGTH];
+    private final byte[] sharedDeflateReadBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE + 32];
     /**
      * A larger deflated data buffer.
      */
@@ -83,7 +83,7 @@ public class Packer implements Closeable
     /**
      * Shared deflate state machine.
      */
-    private final Deflater deflater = new Deflater();
+    private final Deflater deflater = new Deflater(Deflater.NO_COMPRESSION);
     /**
      * List of all attached progress listeners.
      */
@@ -229,7 +229,8 @@ public class Packer implements Closeable
             final ByteBuffer infoBuffer = ByteBuffer.allocateDirect(toInt(pakInfo.GetSerializedSize(setup.pakVersion)));
             pakInfo.Serialize(infoBuffer);
             c.write((ByteBuffer) infoBuffer.flip());
-        } finally
+        }
+        finally
         {
             closed = true;
         }
@@ -289,11 +290,10 @@ public class Packer implements Closeable
         entry.UncompressedSize = readTotal;
         entry.CompressionMethod = ECompressionFlags.COMPRESS_None;
 
-        try
-        {
+        try {
             sha1.digest(entry.Hash, 0, sha1.getDigestLength());
-        } catch (DigestException e)
-        {
+        }
+        catch (DigestException e) {
             throw new RuntimeException(e);
         }
 
@@ -371,7 +371,8 @@ public class Packer implements Closeable
                 }
 
                 FAES.EncryptData(entriesBuffer.array(), bufferSize, sharedKeyBytes);
-            } finally
+            }
+            finally
             {
                 Arrays.fill(sharedKeyBytes, (byte) 0);
             }
@@ -467,7 +468,8 @@ public class Packer implements Closeable
             if (FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound())
             {
                 FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
-            } else
+            }
+            else
             {
                 throw new IllegalStateException("Unable to encrypt data, Encryption Delegate is not bound");
             }
@@ -475,8 +477,8 @@ public class Packer implements Closeable
 
         final List<File> tempFiles = new ArrayList<>();
 
-        final byte[] readBuffer = this.sharedDeflateReadBuffer;
-        final byte[] blockBuffer = this.sharedBlockBuffer;
+        final byte[] readBuffer = this.sharedBlockBuffer;
+        final byte[] writeBuffer = this.sharedDeflateReadBuffer;
 
         // Nullify hash bytes
         Arrays.fill(outHash, (byte) 0);
@@ -485,103 +487,153 @@ public class Packer implements Closeable
         boolean caughtAnException = false;
         try
         {
-            boolean readingIsDone = false;
-            while (!readingIsDone)
+            int bytesReadPerTransmission;
+            while ((bytesReadPerTransmission = is.read(readBuffer, 0, readBuffer.length)) > 0)
             {
-                int bytesWrittenPerBlock = 0;
-                int bytesReadPerBlock = 0;
-
                 deflater.reset();
+                deflater.setInput(readBuffer, 0, bytesReadPerTransmission);
+                deflater.finish();
 
-                int bytesReadPerTransmission;
-                while ((bytesWrittenPerBlock < WRITE_SIZE_DELTA) && ((bytesReadPerTransmission = is.read(readBuffer)) > 0))
+                final int bytesDeflated = deflater.deflate(writeBuffer);
+                if (!deflater.finished())
                 {
-                    // Deflate until done
-                    deflater.setInput(readBuffer, 0, bytesReadPerTransmission);
-                    while (!deflater.needsInput())
-                    {
-                        final int bytesRemaining = blockBuffer.length - bytesWrittenPerBlock;
-
-                        final int bytesDeflated = deflater.deflate(blockBuffer, bytesWrittenPerBlock, bytesRemaining,
-                                Deflater.SYNC_FLUSH);
-
-                        if (bytesDeflated > 0)
-                        {
-                            bytesWrittenPerBlock += bytesDeflated;
-                        }
-                    }
-
-                    bytesReadPerBlock += bytesReadPerTransmission;
-                    onBytesProcessed(bytesReadPerTransmission);
+                    throw new IllegalStateException("Deflate not finished! Algorithm error.");
                 }
 
-                if (bytesReadPerBlock > 0)
+
+                final int sizeToWrite = encrypt ? Align(bytesDeflated, FAES.getBlockSize()) : bytesDeflated;
+                if (encrypt)
                 {
-                    final int bytesRemaining = blockBuffer.length - bytesWrittenPerBlock;
-
-                    // Finish deflation
-                    deflater.finish();
-                    bytesWrittenPerBlock += deflater.deflate(blockBuffer, bytesWrittenPerBlock, bytesRemaining);
-
-                    // Determine final chunk size to write
-                    final int sizeToWrite = encrypt ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesWrittenPerBlock;
-                    if (sizeToWrite > MAX_COMPRESSED_BUFFER_SIZE)
+                    // Add trailing zeroes if alignment has been applied
+                    if (bytesDeflated != sizeToWrite)
                     {
-                        throw new IllegalStateException("Too huge block: " + sizeToWrite + " bytes, allowed: " + MAX_COMPRESSED_BUFFER_SIZE);
+                        Arrays.fill(writeBuffer, bytesDeflated, sizeToWrite, (byte) 0);
                     }
 
-                    // Encrypt if necessary, the key is already known
-                    if (encrypt)
-                    {
-                        // Add trailing zeroes if alignment has been applied
-                        if (bytesWrittenPerBlock != sizeToWrite)
-                        {
-                            Arrays.fill(blockBuffer, bytesWrittenPerBlock, sizeToWrite, (byte) 0);
-                        }
-
-                        FAES.EncryptData(blockBuffer, sizeToWrite, sharedKeyBytes);
-                    }
-
-                    // Update hash with raw, not deflated, not encrypted file data
-                    sha1.update(blockBuffer, 0, sizeToWrite);
-
-                    // Create and immediately put into the list of files
-                    final File tempFile = File.createTempFile("juepak_temp_", ".cblock");
-                    tempFiles.add(tempFile);
-
-                    // Finally, write the data
-                    try (final FileOutputStream fis = new FileOutputStream(tempFile))
-                    {
-                        fis.write(blockBuffer, 0, sizeToWrite);
-                    }
-
-                    outUncompressedSize.getAndAdd(bytesReadPerBlock);
-                    outCompressedSize.getAndAdd(sizeToWrite);
-                } else
-                {
-                    readingIsDone = true;
+                    FAES.EncryptData(writeBuffer, sizeToWrite, sharedKeyBytes);
                 }
+
+                // Compute hash
+                sha1.update(writeBuffer, 0, sizeToWrite);
+
+                // Create and immediately put into the list of files
+                final File tempFile = File.createTempFile("juepak_temp_", ".cblock");
+                tempFiles.add(tempFile);
+
+                // Finally, write the data
+                try (final FileOutputStream fis = new FileOutputStream(tempFile))
+                {
+                    fis.write(writeBuffer, 0, sizeToWrite);
+                }
+
+                onBytesProcessed(bytesReadPerTransmission);
+
+                outUncompressedSize.getAndAdd(bytesReadPerTransmission);
+                outCompressedSize.getAndAdd(bytesDeflated);
             }
+
+
+//            boolean readingIsDone = false;
+//            while (!readingIsDone)
+//            {
+//                int bytesWrittenPerBlock = 0;
+//                int bytesReadPerBlock = 0;
+//
+//                deflater.reset();
+//
+//                int bytesReadPerTransmission;
+//                while ((bytesReadPerBlock < MAX_COMPRESSED_BUFFER_SIZE) && ((bytesReadPerTransmission = is.read(writeBuffer)) > 0))
+//                {
+//                    // Deflate until done
+//                    deflater.setInput(writeBuffer, 0, bytesReadPerTransmission);
+//                    while (!deflater.needsInput())
+//                    {
+//                        final int bytesRemaining = blockBuffer.length - bytesWrittenPerBlock;
+//
+//                        final int bytesDeflated = deflater.deflate(blockBuffer, bytesWrittenPerBlock, bytesRemaining,
+//                                Deflater.SYNC_FLUSH);
+//
+//                        if (bytesDeflated > 0)
+//                        {
+//                            bytesWrittenPerBlock += bytesDeflated;
+//                        }
+//                    }
+//
+//                    bytesReadPerBlock += bytesReadPerTransmission;
+//                    onBytesProcessed(bytesReadPerTransmission);
+//                }
+//
+//                if (bytesReadPerBlock > 0)
+//                {
+//                    final int bytesRemaining = blockBuffer.length - bytesWrittenPerBlock;
+//
+//                    // Finish deflation
+//                    deflater.finish();
+//                    bytesWrittenPerBlock += deflater.deflate(blockBuffer, bytesWrittenPerBlock, bytesRemaining);
+//
+//                    // Determine final chunk size to write
+//                    final int sizeToWrite = encrypt ? Align(bytesWrittenPerBlock, FAES.getBlockSize()) : bytesWrittenPerBlock;
+//                    if (sizeToWrite > MAX_COMPRESSED_BUFFER_SIZE)
+//                    {
+//                        throw new IllegalStateException("Too huge block: " + sizeToWrite + " bytes, allowed: " + MAX_COMPRESSED_BUFFER_SIZE);
+//                    }
+//
+//                    // Encrypt if necessary, the key is already known
+//                    if (encrypt)
+//                    {
+//                        // Add trailing zeroes if alignment has been applied
+//                        if (bytesWrittenPerBlock != sizeToWrite)
+//                        {
+//                            Arrays.fill(blockBuffer, bytesWrittenPerBlock, sizeToWrite, (byte) 0);
+//                        }
+//
+//                        FAES.EncryptData(blockBuffer, sizeToWrite, sharedKeyBytes);
+//                    }
+//
+//                    // Update hash with raw, not deflated, not encrypted file data
+//                    sha1.update(blockBuffer, 0, sizeToWrite);
+//
+//                    // Create and immediately put into the list of files
+//                    final File tempFile = File.createTempFile("juepak_temp_", ".cblock");
+//                    tempFiles.add(tempFile);
+//
+//                    // Finally, write the data
+//                    try (final FileOutputStream fis = new FileOutputStream(tempFile))
+//                    {
+//                        fis.write(blockBuffer, 0, sizeToWrite);
+//                    }
+//
+//                    outUncompressedSize.getAndAdd(bytesReadPerBlock);
+//                    outCompressedSize.getAndAdd(sizeToWrite);
+//                }
+//                else
+//                {
+//                    readingIsDone = true;
+//                }
+//            }
 
             // Compute final SHA1
             if (sha1.digest(outHash, 0, outHash.length) != outHash.length)
             {
                 throw new RuntimeException("Invalid hash length: must be exactly " + outHash.length + " bytes");
             }
-        } catch (IOException | RuntimeException e)
-        {
-            caughtAnException = true;
-            throw e;
-        } catch (DigestException e)
+        }
+//        catch (IOException | RuntimeException e)
+//        {
+//            caughtAnException = true;
+//            throw e;
+//        }
+        catch (DigestException e)
         {
             // Method has do DigestException in it's signature, so wrap into the RuntimeException
             caughtAnException = true;
             throw new RuntimeException(e);
-        } finally
+        }
+        finally
         {
             // Nullify all intermediate buffers for security reasons
             Arrays.fill(readBuffer, (byte) 0);
-            Arrays.fill(blockBuffer, (byte) 0);
+            Arrays.fill(writeBuffer, (byte) 0);
 
             // Remove temporary files if there were any exceptions
             if (caughtAnException)
