@@ -69,11 +69,11 @@ public class Packer implements Closeable
     /**
      * Small raw data buffer.
      */
-    private final byte[] sharedDeflateReadBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE + 32];
+    private final byte[] sharedDeflateReadBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE * 2];
     /**
      * A larger deflated data buffer.
      */
-    private final byte[] sharedBlockBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
+    private final byte[] sharedBlockBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE * 2];
     /**
      * Key bytes MUST BE NULLIFIED when decryption is done.
      * <p>
@@ -83,7 +83,7 @@ public class Packer implements Closeable
     /**
      * Shared deflate state machine.
      */
-    private final Deflater deflater = new Deflater(Deflater.NO_COMPRESSION);
+    private final Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
     /**
      * List of all attached progress listeners.
      */
@@ -100,6 +100,7 @@ public class Packer implements Closeable
      * A flag, determine whether the packer was closed.
      */
     private boolean closed = false;
+
     private long bytesTotal = 0;
     private long bytesProcessed = 0;
 
@@ -195,7 +196,8 @@ public class Packer implements Closeable
                     if (params.compress)
                     {
                         entry = copyToPakCompressed(fis, c, params.encrypt);
-                    } else
+                    }
+                    else
                     {
                         entry = copyToPakUncompressed(fis, c, params.encrypt);
                     }
@@ -488,7 +490,7 @@ public class Packer implements Closeable
         try
         {
             int bytesReadPerTransmission;
-            while ((bytesReadPerTransmission = is.read(readBuffer, 0, readBuffer.length)) > 0)
+            while ((bytesReadPerTransmission = is.read(readBuffer, 0, MAX_COMPRESSED_BUFFER_SIZE)) > 0)
             {
                 deflater.reset();
                 deflater.setInput(readBuffer, 0, bytesReadPerTransmission);
@@ -499,7 +501,6 @@ public class Packer implements Closeable
                 {
                     throw new IllegalStateException("Deflate not finished! Algorithm error.");
                 }
-
 
                 final int sizeToWrite = encrypt ? Align(bytesDeflated, FAES.getBlockSize()) : bytesDeflated;
                 if (encrypt)

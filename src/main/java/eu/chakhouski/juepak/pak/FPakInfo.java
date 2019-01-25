@@ -5,12 +5,14 @@ import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FGuid;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
+import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toByte;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
@@ -192,8 +194,8 @@ public class FPakInfo
            ", Version=" + Version +
            ", IndexOffset=" + IndexOffset +
            ", IndexSize=" + IndexSize +
-           ", IndexHash=" + Arrays.toString(IndexHash) +
-           ", bEncryptedIndex=" + bEncryptedIndex +
+           ", IndexHash=" + FString.BytesToHex(IndexHash) +
+           ", bEncryptedIndex=" + BOOL(bEncryptedIndex) +
         '}';
     }
 }

@@ -16,9 +16,7 @@ import java.util.stream.Collectors;
 public class Main
 {
     private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
-    private static final String packingDirectory = "/Users/netherwire/Projects/MyUnrealProject/Config";
-
-
+    private static final String packingDirectory = "/Users/netherwire/Projects/boh_gdc/Content/Maps";
     private static final Path archiveFile = Paths.get("/Users/netherwire/Desktop/Archive.pak");
 
 
@@ -35,9 +33,9 @@ public class Main
             }
         });
 
-
         compressDecompress();
     }
+
 
     private static void compressDecompress() throws IOException
     {
@@ -58,26 +56,16 @@ public class Main
 
         // Add files to pack
         for (Path path : pathsToPack)
-            packer.add(path, new Packer.PackParameters().compress());
+            packer.add(path, new Packer.PackParameters().compress().encrypt());
 
 
-        packer.addProgressListener(p -> System.out.println("Progress is: " + p));
+        packer.addProgressListener(p -> System.out.println("Packing: " + p * 100.0f + "%"));
         packer.close();
 
         // Read (unpack)
         try (final FPakFile fPakFile = new FPakFile(archiveFile.toString()))
         {
             System.out.println(fPakFile);
-
-            for (final FPakFile.Entry entry : fPakFile)
-            {
-//                final FPakEntry e = iterator.next();
-                entry.extractMixed(extractDirectory, value -> {
-                    System.out.println("Extracting " + entry.Filename + " progress: " + value);
-                });
-
-                System.out.println(entry.toString());
-            }
         }
     }
 }

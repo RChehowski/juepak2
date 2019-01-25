@@ -45,8 +45,8 @@ public class PakExtractor
     private static final Inflater inflater = new Inflater();
 
     //
-    private static final ByteBuffer srcBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize);
-    private static final ByteBuffer dstBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize);
+    private static final ByteBuffer srcBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize * 2);
+    private static final ByteBuffer dstBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize * 2);
 
 
     public synchronized static void Extract(FPakFile PakFile, FPakEntry Entry, WritableByteChannel DestChannel,
@@ -175,7 +175,9 @@ public class PakExtractor
 
         // Decrypt data if necessary, sharedKeyBytes must be already acquired if entry is encrypted
         if (isEncrypted)
+        {
             FAES.DecryptData(srcBufferArray, srcBuffer.limit(), sharedKeyBytes);
+        }
 
         // Decompress or just write
         if (isCompressed)
@@ -187,6 +189,11 @@ public class PakExtractor
             while (!inflater.finished())
             {
                 try {
+                    if (inflater.needsInput())
+                    {
+                        throw new IOException("Inflater is not ready to inflate");
+                    }
+
                     final int bytesInflated = inflater.inflate(dstBufferArray);
 
                     dstBuffer.position(0);
