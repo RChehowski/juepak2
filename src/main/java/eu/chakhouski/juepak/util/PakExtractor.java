@@ -32,7 +32,7 @@ public class PakExtractor
     /**
      * A statically-allocated entry, serves as check-entry to check pak-file integrity
      */
-    private static final FPakEntry CheckEntry = new FPakEntry();
+    private static final FPakEntry checkEntry = new FPakEntry();
 
     /**
      * Key bytes must be nullified when decryption is done.
@@ -49,7 +49,7 @@ public class PakExtractor
     private static final ByteBuffer dstBuffer = ByteBuffer.allocate(FPakInfo.MaxChunkDataSize * 2);
 
 
-    public synchronized static void Extract(FPakFile PakFile, FPakEntry Entry, WritableByteChannel DestChannel,
+    public synchronized static void Extract(FPakFile PakFile, FPakEntry entry, WritableByteChannel DestChannel,
                                             DoubleConsumer progressConsumer) throws IOException
     {
         if (progressConsumer != null)
@@ -64,22 +64,22 @@ public class PakExtractor
         final FileChannel SourceChannel = PakInputStream.getChannel();
 
         // Deserialize header once again
-        final long EntrySerializedSize = Entry.GetSerializedSize(PakInfo.Version);
+        final long entrySerializedSize = entry.GetSerializedSize(PakInfo.Version);
 
-        CheckEntry.Clean();
-        CheckEntry.Deserialize(SourceChannel.map(MapMode.READ_ONLY, Entry.Offset, EntrySerializedSize), PakInfo.Version);
+        checkEntry.Clean();
+        checkEntry.Deserialize(SourceChannel.map(MapMode.READ_ONLY, entry.Offset, entrySerializedSize), PakInfo.Version);
 
         // Compare entries
-        if (!Entry.equals(CheckEntry))
+        if (!entry.equals(checkEntry))
         {
             throw new IllegalStateException(String.join(System.lineSeparator(), Arrays.asList(
                 "Entry is invalid!",
-                " > Index entry: " + Entry.toString(),
-                " > Check entry: " + CheckEntry.toString()
+                " > Index entry: " + entry.toString(),
+                " > Check entry: " + checkEntry.toString()
             )));
         }
 
-        final boolean bEntryIsEncrypted = Entry.IsEncrypted();
+        final boolean bEntryIsEncrypted = entry.IsEncrypted();
 
         // Acquire key if entry is encrypted to save resources
         if (bEntryIsEncrypted)
@@ -87,14 +87,14 @@ public class PakExtractor
             FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
         }
 
-        final long entrySize = Entry.Size;
+        final long entrySize = entry.Size;
 
         // Choose compression method and extract
-        switch (Entry.CompressionMethod)
+        switch (entry.CompressionMethod)
         {
             case ECompressionFlags.COMPRESS_None:
             {
-                long Offset = Entry.Offset + EntrySerializedSize;
+                long Offset = entry.Offset + entrySerializedSize;
                 long BytesRemaining = entrySize;
 
                 while (BytesRemaining > 0)
@@ -118,9 +118,9 @@ public class PakExtractor
             {
                 long bytesProcessed = 0;
 
-                for (final FPakCompressedBlock Block : Entry.CompressionBlocks)
+                for (final FPakCompressedBlock Block : entry.CompressionBlocks)
                 {
-                    final long GlobalOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? Entry.Offset : 0;
+                    final long GlobalOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? entry.Offset : 0;
                     final long Offset = GlobalOffset + Block.CompressedStart;
                     final long BytesToRead = Block.CompressedEnd - Block.CompressedStart;
 
@@ -138,7 +138,7 @@ public class PakExtractor
             }
             default:
             {
-                throw new IOException("Unsupported compression method: " + StaticToString(Entry.CompressionMethod));
+                throw new IOException("Unsupported compression method: " + StaticToString(entry.CompressionMethod));
             }
         }
 
@@ -151,39 +151,35 @@ public class PakExtractor
 
 
     private static void ExtractBlock(SeekableByteChannel srcChannel, WritableByteChannel dstChannel,
-                                     final long BlockOffset, final int BlockSize,
+                                     final long BlockOffset, final int blockSize,
                                      final boolean isEncrypted, final boolean isCompressed)
             throws IOException
     {
         // Check block size
-        if (BlockSize < 0 || BlockSize > srcBuffer.capacity())
+        if (blockSize < 0 || blockSize > srcBuffer.capacity())
         {
-            throw new IOException("Illegal block size: " + BlockSize + ", must be within 0.." + srcBuffer.capacity());
+            throw new IOException("Illegal block size: " + blockSize + ", must be within 0.." + srcBuffer.capacity());
         }
 
         // Rewind buffer and set limit
         srcBuffer.position(0);
-        srcBuffer.limit(isEncrypted ? Align(BlockSize, FAES.getBlockSize()) : BlockSize);
+        srcBuffer.limit(isEncrypted ? Align(blockSize, FAES.getBlockSize()) : blockSize);
 
         // Read data
         srcChannel.position(BlockOffset);
         srcChannel.read(srcBuffer);
 
-        // Cache arrays to reduce
-        final byte[] srcBufferArray = srcBuffer.array();
-        final byte[] dstBufferArray = dstBuffer.array();
-
         // Decrypt data if necessary, sharedKeyBytes must be already acquired if entry is encrypted
         if (isEncrypted)
         {
-            FAES.DecryptData(srcBufferArray, srcBuffer.limit(), sharedKeyBytes);
+            FAES.DecryptData(srcBuffer.array(), srcBuffer.limit(), sharedKeyBytes);
         }
 
         // Decompress or just write
         if (isCompressed)
         {
             inflater.reset();
-            inflater.setInput(srcBufferArray, 0, srcBuffer.limit());
+            inflater.setInput(srcBuffer.array(), 0, srcBuffer.limit());
 
             // Read until inflater is finished
             while (!inflater.finished())
@@ -194,7 +190,7 @@ public class PakExtractor
                         throw new IOException("Inflater is not ready to inflate");
                     }
 
-                    final int bytesInflated = inflater.inflate(dstBufferArray);
+                    final int bytesInflated = inflater.inflate(dstBuffer.array());
 
                     dstBuffer.position(0);
                     dstBuffer.limit(bytesInflated);
@@ -208,7 +204,7 @@ public class PakExtractor
         }
         else
         {
-            dstChannel.write((ByteBuffer) srcBuffer.position(0).limit(BlockSize));
+            dstChannel.write((ByteBuffer) srcBuffer.position(0).limit(blockSize));
         }
     }
 }
