@@ -1,10 +1,10 @@
 package eu.chakhouski.juepak.util;
 
-import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.pak.FPakCompressedBlock;
 import eu.chakhouski.juepak.pak.FPakEntry;
 import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.pak.FPakInfo;
+import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FMemory;
@@ -21,8 +21,8 @@ import java.util.function.DoubleConsumer;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-import static eu.chakhouski.juepak.ue4.ECompressionFlags.StaticToString;
 import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
+import static eu.chakhouski.juepak.ue4.ECompressionFlags.StaticToString;
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;

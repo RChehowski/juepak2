@@ -10,7 +10,6 @@ import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toByte;

@@ -1,11 +1,11 @@
 package eu.chakhouski.juepak.pak;
 
-import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
+import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;

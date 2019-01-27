@@ -10,7 +10,13 @@ import eu.chakhouski.juepak.ue4.FMath;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.PakVersion;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
@@ -603,6 +609,8 @@ public class Packer implements Closeable
         private boolean deleteRecord;
         private boolean compress;
 
+        private int deflterHint = Deflater.DEFAULT_COMPRESSION;
+
         @SuppressWarnings("WeakerAccess")
         public static PackParameters sharedDefaultParameters()
         {
@@ -623,6 +631,12 @@ public class Packer implements Closeable
         public PackParameters deleteRecord()
         {
             deleteRecord = true;
+            return this;
+        }
+
+        public PackParameters deflaterHint(int value)
+        {
+            deflterHint = value;
             return this;
         }
 

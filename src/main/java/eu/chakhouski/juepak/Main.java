@@ -5,15 +5,11 @@ import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.util.Packer;
 
 import java.io.IOException;
-import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Base64;
-import java.util.BitSet;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class Main
