@@ -88,6 +88,7 @@ public class FPakInfo
     /** Flag indicating if the pak index has been encrypted. */
     public byte bEncryptedIndex;
     /** Encryption key guid. Empty if we should use the embedded key. */
+    @SuppressWarnings("WeakerAccess")
     public FGuid EncryptionKeyGuid = new FGuid();
 
     /**
@@ -105,10 +106,12 @@ public class FPakInfo
     }
 
     /**
+     * UNSAFE!!! Don't use me, we need to know an actual version.
      * Gets the size of data serialized by this struct.
      *
      * @return Serialized data size.
      */
+    @Deprecated
     public long GetSerializedSize()
     {
         return GetSerializedSize(PakFile_Version_Latest);

@@ -55,7 +55,7 @@ public class PakExtractor
             progressConsumer.accept(.0);
         }
 
-        final FPakInfo PakInfo = PakFile.GetInfo();
+        final FPakInfo PakInfo = PakFile.getInfo();
         final FileInputStream PakInputStream = PakFile.inputStream;
 
         // Might use cached channel if any has already created, this must be stable
@@ -118,7 +118,7 @@ public class PakExtractor
 
                 for (final FPakCompressedBlock Block : entry.CompressionBlocks)
                 {
-                    final long GlobalOffset = BOOL(PakFile.GetInfo().HasRelativeCompressedChunkOffsets()) ? entry.Offset : 0;
+                    final long GlobalOffset = BOOL(PakFile.getInfo().HasRelativeCompressedChunkOffsets()) ? entry.Offset : 0;
                     final long Offset = GlobalOffset + Block.CompressedStart;
                     final long BytesToRead = Block.CompressedEnd - Block.CompressedStart;
 

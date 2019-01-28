@@ -27,38 +27,34 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
 {
     /**
      * Random seed used in {@link FPakFile#BriefChecksumOfContent()}
+     * Used to gain entropy in checksum computation.
      */
     private static final long INITIAL_RANDOM_SEED = System.nanoTime();
 
     /**
      * Pak filename.
      */
-    private final String pakFilename;
+    private String pakFilename;
 
     /**
      * Pak file info (trailer).
      */
-    private final FPakInfo Info = new FPakInfo();
+    private final FPakInfo info = new FPakInfo();
 
     /**
-     * Map of entries
+     * Map of entries.
      */
-    private final Map<String, FPakEntry> Entries = new LinkedHashMap<>();
+    private final Map<String, FPakEntry> index = new LinkedHashMap<>();
 
     /**
      * Mount point.
      */
-    private String MountPoint;
+    private String mountPoint;
 
     /**
-     * Info on all files stored in pak.
+     * TotalSize of the pak file.
      */
-    private int NumEntries;
-
-    /**
-     * TotalSize of the pak file
-     */
-    private long CachedTotalSize;
+    private long cachedTotalSize;
 
     /**
      * Cached file input stream, closes in {@link #close()}
@@ -66,13 +62,43 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
     @JavaDecoratorField
     public FileInputStream inputStream;
 
+    /**
+     * True if this pak file is valid and usable.
+     */
+    private boolean bIsValid = false;
 
-    public FPakFile(final Path path) throws IOException
+
+    public FPakFile(final Path path)
     {
-        pakFilename = path.toString();
-        inputStream = new FileInputStream(path.toFile());
+        try {
+            pakFilename = path.toString();
+            inputStream = new FileInputStream(path.toFile());
 
-        Initialize(inputStream.getChannel());
+            Initialize(inputStream.getChannel());
+        }
+        catch (IOException ignore) {
+            // Throw (maybe) wrapped into a RuntimeException.
+        }
+    }
+
+    // === Constructor and destructor ===
+
+    /**
+     * Map of entries
+     */
+    Map<String, FPakEntry> GetEntries()
+    {
+        return index;
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+        if (inputStream != null)
+        {
+            inputStream.close();
+            inputStream = null;
+        }
     }
 
     private static String MakeDirectoryFromPath(String Path)
@@ -87,40 +113,14 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
         }
     }
 
-
-    // === Constructor and destructor ===
-
-    /**
-     * Map of entries
-     */
-    Map<String, FPakEntry> GetEntries()
-    {
-        return Entries;
-    }
-
-    @Override
-    public void close() throws IOException
-    {
-        if (inputStream != null)
-        {
-            inputStream.close();
-            inputStream = null;
-        }
-    }
-
-    public final FPakInfo GetInfo()
-    {
-        return Info;
-    }
-
     private void DecryptData(byte[] InData, int InDataSize)
     {
-        FPakEncryptionKeyDelegate Delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
-
         final byte[] keyBytes = new byte[32];
-        if (Delegate.IsBound())
+
+        final FPakEncryptionKeyDelegate delegate = FCoreDelegates.GetPakEncryptionKeyDelegate();
+        if (delegate.IsBound())
         {
-            Delegate.Execute(keyBytes);
+            delegate.Execute(keyBytes);
         }
 
         FAES.DecryptData(InData, InDataSize, keyBytes);
@@ -131,119 +131,131 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
 
     private void Initialize(SeekableByteChannel channel) throws IOException
     {
-        CachedTotalSize = channel.size();
-
-        final ByteBuffer map = ByteBuffer.allocate(toInt(Info.GetSerializedSize(Info.Version)))
-                .order(ByteOrder.LITTLE_ENDIAN);
-
-        final int FIXME_defaultVersion = FPakInfo.PakFile_Version_RelativeChunkOffsets;
-
-        channel.position(CachedTotalSize - Info.GetSerializedSize(FIXME_defaultVersion));
-        channel.read(map);
-        map.flip();
-
-        Info.Deserialize(map, FIXME_defaultVersion);
-
-        if (CachedTotalSize < Info.GetSerializedSize())
+        cachedTotalSize = channel.size();
+        boolean bShouldLoad = true;
+        int compatibleVersion = FPakInfo.PakFile_Version_Latest;
+        if (cachedTotalSize > 0)
         {
-            if (BOOL(CachedTotalSize)) // UEMOB-425: can be zero - only error when not zero
+            while (compatibleVersion > 0 && (cachedTotalSize < info.GetSerializedSize(compatibleVersion)))
             {
-                throw new RuntimeException("Corrupted pak file " + pakFilename + " (too short). Verify your installation.");
+                compatibleVersion--;
+            }
+
+            if (compatibleVersion < FPakInfo.PakFile_Version_Initial)
+            {
+                bShouldLoad = false;
             }
         }
 
+        if (bShouldLoad)
+        {
+            final ByteBuffer map = ByteBuffer.allocate(toInt(info.GetSerializedSize(compatibleVersion)))
+                    .order(ByteOrder.LITTLE_ENDIAN);
 
-        if (Info.Magic != FPakInfo.PakFile_Magic)
-            throw new IOException("Trailing magic number " + Info.Magic + " in " + pakFilename +
-                    " is different than the expected one. Verify your installation.");
+            // Serialize trailer and check if everything is as expected.
+            channel.position(cachedTotalSize - info.GetSerializedSize(compatibleVersion));
+            channel.read(map);
 
-        if (!(Info.Version >= FPakInfo.PakFile_Version_Initial && Info.Version <= FPakInfo.PakFile_Version_Latest))
-            throw new IOException("Invalid pak file version (" + Info.Version + ") in " + pakFilename + ". Verify your installation.");
+            info.Deserialize((ByteBuffer) map.flip(), compatibleVersion);
 
-        if ((Info.bEncryptedIndex == 1) && (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound()))
-            throw new IOException("Index of pak file '" + pakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
+            if (info.Magic != FPakInfo.PakFile_Magic)
+                throw new IOException("Trailing magic number " + info.Magic + " in " + pakFilename +
+                        " is different than the expected one. Verify your installation.");
 
-        if (!(Info.IndexOffset >= 0 && Info.IndexOffset < CachedTotalSize))
-            throw new IOException("Index offset for pak file '" + pakFilename + "' is invalid (" + Info.IndexOffset + ")");
+            if (!(info.Version >= FPakInfo.PakFile_Version_Initial && info.Version <= FPakInfo.PakFile_Version_Latest))
+                throw new IOException("Invalid pak file version (" + info.Version + ") in " + pakFilename + ". Verify your installation.");
 
-        if (!((Info.IndexOffset + Info.IndexSize) >= 0 && (Info.IndexOffset + Info.IndexSize) <= CachedTotalSize))
-            throw new IOException("Index end offset for pak file '" + pakFilename + "' is invalid (" + Info.IndexOffset + Info.IndexSize + ")");
+            if ((info.bEncryptedIndex == 1) && (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound()))
+                throw new IOException("Index of pak file '" + pakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
 
-        LoadIndex(channel);
+            if (!(info.IndexOffset >= 0 && info.IndexOffset < cachedTotalSize))
+                throw new IOException("Index offset for pak file '" + pakFilename + "' is invalid (" + info.IndexOffset + ")");
+
+            if (!((info.IndexOffset + info.IndexSize) >= 0 && (info.IndexOffset + info.IndexSize) <= cachedTotalSize))
+                throw new IOException("Index end offset for pak file '" + pakFilename + "' is invalid (" + info.IndexOffset + info.IndexSize + ")");
+
+            if (!info.EncryptionKeyGuid.IsValid() /* || GRegisteredEncryptionKeys.HasKey(Info.EncryptionKeyGuid) */)
+            {
+                LoadIndex(channel);
+
+                // LoadIndex should crash in case of an error, so just assume everything is ok if we got here.
+                // Except that we won't crash.
+                bIsValid = true;
+            }
+        }
     }
 
     private void LoadIndex(SeekableByteChannel channel) throws IOException
     {
-        if (CachedTotalSize < (Info.IndexOffset + Info.IndexSize))
+        if (cachedTotalSize < (info.IndexOffset + info.IndexSize))
         {
             throw new IOException("Corrupted index offset in pak file.");
         }
         else
         {
-            final ByteBuffer IndexData = ByteBuffer.allocate(toInt(Info.IndexSize))
-                    .order(ByteOrder.LITTLE_ENDIAN);
+            final ByteBuffer indexData = ByteBuffer.allocate(toInt(info.IndexSize)).order(ByteOrder.LITTLE_ENDIAN);
 
-            final int actualReadBytes = channel.position(Info.IndexOffset).read(IndexData);
-            if (actualReadBytes != Info.IndexSize)
+            final int actualReadBytes = channel.position(info.IndexOffset).read(indexData);
+            if (actualReadBytes != info.IndexSize)
             {
                 throw new IOException(String.join(System.lineSeparator(),
                         "Can not read that much index data from pak file channel",
-                        "   index offset: " + Info.IndexOffset,
-                        "   index size  : " + Info.IndexSize,
+                        "   index offset: " + info.IndexOffset,
+                        "   index size  : " + info.IndexSize,
                         "   total bytes : " + channel.size(),
                         "   actual read : " + actualReadBytes
                 ));
             }
 
-            IndexData.position(0);
+            indexData.position(0);
 
             // Decrypt in-place if necessary
-            if (BOOL(Info.bEncryptedIndex))
+            if (BOOL(info.bEncryptedIndex))
             {
-                DecryptData(IndexData.array(), (int) Info.IndexSize);
+                DecryptData(indexData.array(), (int) info.IndexSize);
             }
 
             // Check SHA1 value.
-            byte[] IndexHash = new byte[FSHA1.GetDigestLength()];
-            FSHA1.HashBuffer(IndexData.array(), IndexData.capacity(), IndexHash);
+            byte[] indexHash = new byte[FSHA1.GetDigestLength()];
+            FSHA1.HashBuffer(indexData.array(), indexData.capacity(), indexHash);
 
-            if (!Arrays.equals(IndexHash, Info.IndexHash))
+            if (!Arrays.equals(indexHash, info.IndexHash))
             {
-                final String StoredIndexHash = "0x" + FString.BytesToHex(Info.IndexHash);
-                final String ComputedIndexHash = "0x" + FString.BytesToHex(IndexHash);
+                final String storedIndexHash = "0x" + FString.BytesToHex(info.IndexHash);
+                final String computedIndexHash = "0x" + FString.BytesToHex(indexHash);
 
                 throw new IOException(String.join(System.lineSeparator(),
                         "Corrupt pak index detected!",
                         " Filename: " + pakFilename,
-                        " Encrypted: " + Info.bEncryptedIndex,
-                        " Total Size: " + CachedTotalSize,
-                        " Index Offset: " + Info.IndexOffset,
-                        " Index Size: " + Info.IndexSize,
-                        " Stored Index Hash: " + StoredIndexHash,
-                        " Computed Index Hash: " + ComputedIndexHash,
+                        " Encrypted: " + info.bEncryptedIndex,
+                        " Total Size: " + cachedTotalSize,
+                        " Index Offset: " + info.IndexOffset,
+                        " Index Size: " + info.IndexSize,
+                        " Stored Index Hash: " + storedIndexHash,
+                        " Computed Index Hash: " + computedIndexHash,
                         "Corrupted index in pak file (CRC mismatch)."
                 ));
             }
 
             // Read the default mount point and all entries.
-            NumEntries = 0;
-            MountPoint = UE4Deserializer.Read(IndexData, String.class);
-            NumEntries = UE4Deserializer.ReadInt(IndexData);
+            int numEntries;
+            mountPoint = UE4Deserializer.Read(indexData, String.class);
+            numEntries = UE4Deserializer.ReadInt(indexData);
 
-            MountPoint = MakeDirectoryFromPath(MountPoint);
+            mountPoint = MakeDirectoryFromPath(mountPoint);
 
-            for (int EntryIndex = 0; EntryIndex < NumEntries; EntryIndex++)
+            for (int entryIndex = 0; entryIndex < numEntries; entryIndex++)
             {
                 // Deserialize from memory.
                 // 1. First the file name (String)
-                final String Filename = UE4Deserializer.Read(IndexData, String.class);
+                final String filename = UE4Deserializer.Read(indexData, String.class);
 
                 // 2. And then, the entry
-                final FPakEntry Entry = new FPakEntry();
-                Entry.Deserialize(IndexData, Info.Version);
+                final FPakEntry entry = new FPakEntry();
+                entry.Deserialize(indexData, info.Version);
 
                 // Put the entry
-                Entries.put(Filename, Entry);
+                index.put(filename, entry);
             }
         }
     }
@@ -269,51 +281,47 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
     {
         // Perform direct allocation to speed-up bulk operations
         // Otherwise, java will fall into byte-merging and will make our bulk operations senseless
-        final ByteBuffer ItemBuffer = ByteBuffer.allocateDirect(FSHA1.GetDigestLength())
-                .order(ByteOrder.LITTLE_ENDIAN);
-
-        final ByteBuffer MergeBuffer = ByteBuffer.allocateDirect(FSHA1.GetDigestLength())
-                .order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer itemBuffer = ByteBuffer.allocateDirect(FSHA1.GetDigestLength()).order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer mergeBuffer = ByteBuffer.allocateDirect(FSHA1.GetDigestLength()).order(ByteOrder.LITTLE_ENDIAN);
 
         // Salt generator, generating
         final Random saltGenerator = new Random(INITIAL_RANDOM_SEED);
 
-        for (Map.Entry<String, FPakEntry> entry : Entries.entrySet())
+        for (Map.Entry<String, FPakEntry> entry : index.entrySet())
         {
             final FPakEntry pakEntry = entry.getValue();
 
             // Put hash
-            ItemBuffer.position(0);
-            ItemBuffer.put(pakEntry.Hash);
+            itemBuffer.position(0);
+            itemBuffer.put(pakEntry.Hash);
 
             // XOR data
-            ItemBuffer.position(0);
-            MergeBuffer.position(0);
+            itemBuffer.position(0);
+            mergeBuffer.position(0);
 
             // Perform 3 bulk operations to xor 8 + 8 + 4 = 20 bytes of SHA1
-            final long l0 = MergeBuffer.getLong() ^ ItemBuffer.getLong() ^ saltGenerator.nextLong();
-            final long l1 = MergeBuffer.getLong() ^ ItemBuffer.getLong() ^ saltGenerator.nextLong();
-            final int i0 = MergeBuffer.getInt() ^ ItemBuffer.getInt() ^ saltGenerator.nextInt();
+            final long l0 = mergeBuffer.getLong() ^ itemBuffer.getLong() ^ saltGenerator.nextLong();
+            final long l1 = mergeBuffer.getLong() ^ itemBuffer.getLong() ^ saltGenerator.nextLong();
+            final int i0 = mergeBuffer.getInt() ^ itemBuffer.getInt() ^ saltGenerator.nextInt();
 
-            // Put back into MergeBuffer
-            MergeBuffer.position(0);
-            MergeBuffer.putLong(l0).putLong(l1).putInt(i0);
+            // Put back into mergeBuffer
+            mergeBuffer.position(0);
+            mergeBuffer.putLong(l0).putLong(l1).putInt(i0);
         }
 
         // Get result bytes from our DirectByteBuffer
-        MergeBuffer.position(0);
-        final byte[] Result = new byte[MergeBuffer.capacity()];
-        MergeBuffer.get(Result);
+        mergeBuffer.position(0);
+        final byte[] Result = new byte[mergeBuffer.capacity()];
+        mergeBuffer.get(Result);
 
         return Result;
     }
 
     @APIBridgeMethod
-    public final long getSize()
+    public final long getPayloadSize()
     {
         long size = 0;
-
-        for (PakIteratorEntry e : this)
+        for (final PakIteratorEntry e : this)
         {
             final FPakEntry pakEntry = e.Entry;
             size += pakEntry.Size;
@@ -323,11 +331,10 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
     }
 
     @APIBridgeMethod
-    public final long getUncompressedSize()
+    public final long getPayloadUncompressedSize()
     {
         long size = 0;
-
-        for (PakIteratorEntry e : this)
+        for (final PakIteratorEntry e : this)
         {
             final FPakEntry pakEntry = e.Entry;
             size += pakEntry.UncompressedSize;
@@ -335,6 +342,53 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
 
         return size;
     }
+
+    /**
+     * Gets pak filename.
+     *
+     * @return Pak filename.
+     */
+    public final String getFilename()
+    {
+        return pakFilename;
+    }
+
+    public final long totalSize()
+    {
+        return cachedTotalSize;
+    }
+
+    public final FPakInfo getInfo()
+    {
+        return info;
+    }
+
+    public void setMountPoint(String mountPoint)
+    {
+        this.mountPoint = mountPoint;
+    }
+
+    public String getMountPoint()
+    {
+        return mountPoint;
+    }
+
+    /**
+     * Checks if the pak file is valid.
+     *
+     * @return true if this pak file is valid, false otherwise.
+     */
+    public boolean IsValid()
+    {
+        return bIsValid;
+    }
+
+    @APIBridgeMethod
+    public long getNumFiles()
+    {
+        return index.size();
+    }
+
 
     @Override
     public int hashCode()
@@ -347,10 +401,9 @@ public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
     {
         return "FPakFile{" +
             "pakFilename='" + pakFilename + '\'' +
-            ", Info=" + Info +
-            ", MountPoint='" + MountPoint + '\'' +
-            ", NumEntries=" + NumEntries +
-            ", CachedTotalSize=" + CachedTotalSize +
+            ", info=" + info +
+            ", mountPoint='" + mountPoint + '\'' +
+            ", cachedTotalSize=" + cachedTotalSize +
         '}';
     }
 
