@@ -3,6 +3,7 @@ package eu.chakhouski.juepak;
 import eu.chakhouski.juepak.packer.Packer;
 import eu.chakhouski.juepak.packer.PakEntryParameters;
 import eu.chakhouski.juepak.pak.FPakFile;
+import eu.chakhouski.juepak.pak.PakIteratorEntry;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
 public class Main
 {
     private static final String extractDirectory = "/Users/netherwire/Desktop/Extract";
-    private static final String packingDirectory = "/Users/netherwire/Projects/UnrealEngine/Templates/FP_FirstPerson";
+    private static final String packingDirectory = "/Volumes/Samsung/Projects/UnrealEngine/Engine/Build";
     private static final Path archiveFile = Paths.get("/Users/netherwire/Desktop/Archive.pak");
 
 
@@ -49,16 +50,16 @@ public class Main
 
         // Add files to pack
         for (Path path : pathsToPack)
-            packer.add(path, new PakEntryParameters().compress());
+            packer.add(path, new PakEntryParameters().compress().encrypt());
 
 
         packer.addProgressListener(p -> System.out.println("Packing: " + p * 100.0f + "%"));
         packer.close();
 
         // Read (unpack)
-        try (final FPakFile fPakFile = new FPakFile(archiveFile.toString()))
+        try (final FPakFile fPakFile = new FPakFile(archiveFile))
         {
-            for (FPakFile.Entry entry : fPakFile) {
+            for (PakIteratorEntry entry : fPakFile) {
                 entry.extractMixed(extractDirectory, x -> System.out.println("Extracting: " + x * 100.0f + "%"));
             }
         }

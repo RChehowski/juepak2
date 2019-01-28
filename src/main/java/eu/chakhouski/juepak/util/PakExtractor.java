@@ -56,7 +56,7 @@ public class PakExtractor
         }
 
         final FPakInfo PakInfo = PakFile.GetInfo();
-        final FileInputStream PakInputStream = PakFile.InputStream;
+        final FileInputStream PakInputStream = PakFile.inputStream;
 
         // Might use cached channel if any has already created, this must be stable
         final FileChannel SourceChannel = PakInputStream.getChannel();

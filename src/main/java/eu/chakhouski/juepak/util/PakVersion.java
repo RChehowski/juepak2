@@ -35,6 +35,8 @@ public class PakVersion
         versionRanges.put(range(version(4,20,0), version(4,21,0)),
                 FPakInfo.PakFile_Version_RelativeChunkOffsets);
 
+        // Add newer version when they will be released
+
         // Currently the latest version
         versionRanges.put(range(version(4,21,0), UnrealEngineVersion.maxVersion()),
                 FPakInfo.PakFile_Version_Latest);

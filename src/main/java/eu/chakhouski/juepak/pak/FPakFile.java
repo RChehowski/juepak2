@@ -7,77 +7,72 @@ import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FCoreDelegates.FPakEncryptionKeyDelegate;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
-import eu.chakhouski.juepak.util.PakExtractor;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 
-import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
-import java.util.function.DoubleConsumer;
 
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;
 
-@SuppressWarnings("StringConcatenationInLoop")
-public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
+public class FPakFile implements Iterable<PakIteratorEntry>, AutoCloseable
 {
     /**
      * Random seed used in {@link FPakFile#BriefChecksumOfContent()}
      */
     private static final long INITIAL_RANDOM_SEED = System.nanoTime();
+
     /**
      * Pak filename.
      */
-    private final String PakFilename;
+    private final String pakFilename;
+
     /**
      * Pak file info (trailer).
      */
     private final FPakInfo Info = new FPakInfo();
+
     /**
-     * Cached file input stream, closes in {@link #close()}
+     * Map of entries
      */
-    @JavaDecoratorField
-    public FileInputStream InputStream;
+    private final Map<String, FPakEntry> Entries = new LinkedHashMap<>();
+
     /**
      * Mount point.
      */
     private String MountPoint;
+
     /**
      * Info on all files stored in pak.
      */
     private int NumEntries;
+
     /**
      * TotalSize of the pak file
      */
     private long CachedTotalSize;
-    /**
-     * Map of entries
-     */
-    private Map<String, FPakEntry> Entries = new LinkedHashMap<>();
-    public FPakFile(final String pakFilename) throws IOException
-    {
-        this(new File(pakFilename));
-    }
-    public FPakFile(final File file) throws IOException
-    {
-        PakFilename = file.getName();
-        InputStream = new FileInputStream(file);
 
-        Initialize(InputStream.getChannel());
+    /**
+     * Cached file input stream, closes in {@link #close()}
+     */
+    @JavaDecoratorField
+    public FileInputStream inputStream;
+
+
+    public FPakFile(final Path path) throws IOException
+    {
+        pakFilename = path.toString();
+        inputStream = new FileInputStream(path.toFile());
+
+        Initialize(inputStream.getChannel());
     }
 
     private static String MakeDirectoryFromPath(String Path)
@@ -85,7 +80,8 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         if (Path.length() > 0 && Path.charAt(Path.length() - 1) != '/')
         {
             return Path + "/";
-        } else
+        }
+        else
         {
             return Path;
         }
@@ -102,18 +98,13 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         return Entries;
     }
 
-    void setEntries(Map<String, FPakEntry> entries)
-    {
-        Entries = entries;
-    }
-
     @Override
     public void close() throws IOException
     {
-        if (InputStream != null)
+        if (inputStream != null)
         {
-            InputStream.close();
-            InputStream = null;
+            inputStream.close();
+            inputStream = null;
         }
     }
 
@@ -157,26 +148,26 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         {
             if (BOOL(CachedTotalSize)) // UEMOB-425: can be zero - only error when not zero
             {
-                throw new RuntimeException("Corrupted pak file " + PakFilename + " (too short). Verify your installation.");
+                throw new RuntimeException("Corrupted pak file " + pakFilename + " (too short). Verify your installation.");
             }
         }
 
 
         if (Info.Magic != FPakInfo.PakFile_Magic)
-            throw new IOException("Trailing magic number " + Info.Magic + " in " + PakFilename +
+            throw new IOException("Trailing magic number " + Info.Magic + " in " + pakFilename +
                     " is different than the expected one. Verify your installation.");
 
         if (!(Info.Version >= FPakInfo.PakFile_Version_Initial && Info.Version <= FPakInfo.PakFile_Version_Latest))
-            throw new IOException("Invalid pak file version (" + Info.Version + ") in " + PakFilename + ". Verify your installation.");
+            throw new IOException("Invalid pak file version (" + Info.Version + ") in " + pakFilename + ". Verify your installation.");
 
         if ((Info.bEncryptedIndex == 1) && (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound()))
-            throw new IOException("Index of pak file '" + PakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
+            throw new IOException("Index of pak file '" + pakFilename + "' is encrypted, but this executable doesn't have any valid decryption keys");
 
         if (!(Info.IndexOffset >= 0 && Info.IndexOffset < CachedTotalSize))
-            throw new IOException("Index offset for pak file '" + PakFilename + "' is invalid (" + Info.IndexOffset + ")");
+            throw new IOException("Index offset for pak file '" + pakFilename + "' is invalid (" + Info.IndexOffset + ")");
 
         if (!((Info.IndexOffset + Info.IndexSize) >= 0 && (Info.IndexOffset + Info.IndexSize) <= CachedTotalSize))
-            throw new IOException("Index end offset for pak file '" + PakFilename + "' is invalid (" + Info.IndexOffset + Info.IndexSize + ")");
+            throw new IOException("Index end offset for pak file '" + pakFilename + "' is invalid (" + Info.IndexOffset + Info.IndexSize + ")");
 
         LoadIndex(channel);
     }
@@ -186,7 +177,8 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         if (CachedTotalSize < (Info.IndexOffset + Info.IndexSize))
         {
             throw new IOException("Corrupted index offset in pak file.");
-        } else
+        }
+        else
         {
             final ByteBuffer IndexData = ByteBuffer.allocate(toInt(Info.IndexSize))
                     .order(ByteOrder.LITTLE_ENDIAN);
@@ -222,7 +214,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 
                 throw new IOException(String.join(System.lineSeparator(),
                         "Corrupt pak index detected!",
-                        " Filename: " + PakFilename,
+                        " Filename: " + pakFilename,
                         " Encrypted: " + Info.bEncryptedIndex,
                         " Total Size: " + CachedTotalSize,
                         " Index Offset: " + Info.IndexOffset,
@@ -258,9 +250,9 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 
 
     @Override
-    public FFileIterator iterator()
+    public FPakIterator iterator()
     {
-        return new FFileIterator(this);
+        return new FPakIterator(this);
     }
 
     /**
@@ -321,7 +313,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
     {
         long size = 0;
 
-        for (Entry e : this)
+        for (PakIteratorEntry e : this)
         {
             final FPakEntry pakEntry = e.Entry;
             size += pakEntry.Size;
@@ -335,7 +327,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
     {
         long size = 0;
 
-        for (Entry e : this)
+        for (PakIteratorEntry e : this)
         {
             final FPakEntry pakEntry = e.Entry;
             size += pakEntry.UncompressedSize;
@@ -354,124 +346,12 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
     public String toString()
     {
         return "FPakFile{" +
-                "PakFilename='" + PakFilename + '\'' +
-                ", Info=" + Info +
-                ", MountPoint='" + MountPoint + '\'' +
-                ", NumEntries=" + NumEntries +
-                ", CachedTotalSize=" + CachedTotalSize +
-                '}';
+            "pakFilename='" + pakFilename + '\'' +
+            ", Info=" + Info +
+            ", MountPoint='" + MountPoint + '\'' +
+            ", NumEntries=" + NumEntries +
+            ", CachedTotalSize=" + CachedTotalSize +
+        '}';
     }
 
-    public static class Entry
-    {
-        /**
-         * File name within the archive. Accessible from outside.
-         */
-        public final String Filename;
-
-        /**
-         * Pak entry in the archive. Accessible from outside.
-         */
-        public final FPakEntry Entry;
-
-        private final FPakFile pakFile;
-
-        public Entry(Map.Entry<? extends String, ? extends FPakEntry> mapEntry, FPakFile pakFile)
-        {
-            Filename = mapEntry.getKey();
-            Entry = mapEntry.getValue();
-
-            this.pakFile = pakFile;
-        }
-
-        @APIBridgeMethod
-        public void extractMixed(String RootPath, DoubleConsumer progressConsumer) throws IOException
-        {
-            extractMixed(Paths.get(RootPath), progressConsumer);
-        }
-
-        @APIBridgeMethod
-        public void extractMixed(Path RootPath, DoubleConsumer progressConsumer) throws IOException
-        {
-            final Path AbsolutePath = RootPath.resolve(Filename);
-            final Path AbsoluteDir = AbsolutePath.getParent();
-
-            // Create a directory if none yet
-            if (!Files.isDirectory(AbsoluteDir))
-            {
-                Files.createDirectories(AbsoluteDir);
-            }
-
-            // Extract to file channel
-            try (final FileOutputStream FileOS = new FileOutputStream(AbsolutePath.toFile()))
-            {
-                PakExtractor.Extract(pakFile, Entry, Channels.newChannel(FileOS), progressConsumer);
-            }
-        }
-
-        @APIBridgeMethod
-        public void extractToMemory(final byte[] buffer, DoubleConsumer progressConsumer) throws IOException
-        {
-            extractToMemory(buffer, 0, progressConsumer);
-        }
-
-        @APIBridgeMethod
-        public void extractToMemory(final byte[] Buffer, final int Offset, DoubleConsumer progressConsumer)
-                throws IOException
-        {
-            // Perform fast check whether the drain can fit that much data
-            final int bufferCapacity = Buffer.length - Offset;
-            if (bufferCapacity < Entry.UncompressedSize)
-            {
-                throw new ArrayIndexOutOfBoundsException(
-                        "Your buffer of " + Buffer.length + " bytes starting from position " + Offset +
-                        " (total capacity of " + bufferCapacity + " bytes) can not fit current" +
-                        " pak entry (file) of " + Entry.UncompressedSize + " bytes"
-                );
-            }
-
-            // Do extract
-            PakExtractor.Extract(pakFile, Entry, Channels.newChannel(new OutputStream() {
-                private int position = 0;
-
-                @Override
-                public void write(int b)
-                {
-                    Buffer[Offset + (position++)] = (byte)b;
-                }
-
-                @Override
-                public void write(byte[] InBuffer, int InBufferOffset, int InBufferLength)
-                {
-                    // the default write(int) fallback is too slow, we can instead copy bunches of bytes at once
-                    System.arraycopy(InBuffer, InBufferOffset, Buffer, Offset + position, InBufferLength);
-                    position += InBufferLength;
-                }
-            }), progressConsumer);
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
-
-            final Entry entry = (Entry) o;
-            return Objects.equals(Filename, entry.Filename) && Objects.equals(Entry, entry.Entry);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(Filename, Entry);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Entry{Filename='" + Filename + "', Entry=" + Entry + '}';
-        }
-    }
 }

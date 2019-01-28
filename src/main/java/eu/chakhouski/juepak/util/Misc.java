@@ -105,6 +105,9 @@ public class Misc
         }
 
         // Display message if some deleteFailures (delete deleteFailures are non-fatal?)
-        System.err.println("Unable to delete following files:\n" + deleteFailures);
+        if (!deleteFailures.isEmpty())
+        {
+            System.err.println("Unable to delete following files:\n" + deleteFailures);
+        }
     }
 }

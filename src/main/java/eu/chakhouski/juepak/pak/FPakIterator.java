@@ -4,12 +4,12 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public final class FFileIterator implements Iterator<FPakFile.Entry>
+public final class FPakIterator implements Iterator<PakIteratorEntry>
 {
     private final Iterator<Map.Entry<String, FPakEntry>> iterator;
     private final FPakFile pakFile;
 
-    FFileIterator(FPakFile pakFile)
+    FPakIterator(FPakFile pakFile)
     {
         final Map<String, FPakEntry> entries = pakFile.GetEntries();
 
@@ -26,11 +26,11 @@ public final class FFileIterator implements Iterator<FPakFile.Entry>
     }
 
     @Override
-    public final FPakFile.Entry next()
+    public final PakIteratorEntry next()
     {
         Objects.requireNonNull(iterator, getNoIteratorMessage());
 
-        return new FPakFile.Entry(iterator.next(), pakFile);
+        return new PakIteratorEntry(iterator.next(), pakFile);
     }
 
 
