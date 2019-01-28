@@ -18,12 +18,10 @@ import static eu.chakhouski.juepak.ue4.ECompressionFlags.COMPRESS_None;
 import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 @FStruct
-public class
-FPakEntry
+public class FPakEntry
 {
     @JavaDecoratorField
     private static final FPakCompressedBlock[] SharedDummyCompressionBlocks = new FPakCompressedBlock[0];
-
 
     private static final byte Flag_None = 0x00;
     private static final byte Flag_Encrypted = 0x01;
@@ -55,7 +53,7 @@ FPakEntry
      */
     public FPakEntry()
     {
-        Clean();
+        clean();
     }
 
     /**
@@ -138,7 +136,7 @@ FPakEntry
         }
     }
 
-    void SetFlag( byte InFlag, boolean bValue )
+    private void SetFlag(byte InFlag, boolean bValue)
     {
         if( bValue )
         {
@@ -150,19 +148,30 @@ FPakEntry
         }
     }
 
-    boolean GetFlag( byte InFlag )
+    private boolean GetFlag(byte InFlag)
     {
         return (Flags & InFlag) == InFlag;
     }
 
-    public boolean IsEncrypted()                 { return GetFlag(Flag_Encrypted); }
-    public void SetEncrypted(boolean bEncrypted) { SetFlag( Flag_Encrypted, bEncrypted ); }
+    public boolean IsEncrypted()
+    {
+        return GetFlag(Flag_Encrypted);
+    }
 
-    public boolean IsDeleteRecord()                      { return GetFlag(Flag_Deleted); }
+    public void SetEncrypted(boolean bEncrypted)
+    {
+        SetFlag( Flag_Encrypted, bEncrypted );
+    }
+
+    public boolean IsDeleteRecord()
+    {
+        return GetFlag(Flag_Deleted);
+    }
+
     public void SetDeleteRecord( boolean bDeleteRecord ) { SetFlag(Flag_Deleted, bDeleteRecord ); }
 
     @JavaDecoratorMethod
-    public final FPakEntry Clean()
+    public final FPakEntry clean()
     {
         Offset = -1;
         Size = 0;

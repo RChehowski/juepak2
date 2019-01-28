@@ -1,14 +1,9 @@
 package eu.chakhouski.juepak.util;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.StringJoiner;
-import java.util.function.DoubleConsumer;
 
-@SuppressWarnings("FieldCanBeLocal")
+@SuppressWarnings("SpellCheckingInspection")
 public class Misc
 {
     /**
@@ -46,19 +41,9 @@ public class Misc
     }
 
     /**
-     * Generates a random value between 0 and {@link Short#MAX_VALUE}
-     * This is a reference implementation of {@see http://www.cplusplus.com/reference/cstdlib/rand/}.
-     *
-     * @return A random value.
-     */
-    public static int rand()
-    {
-        return (int)(Math.random() * (double)0x7fff);
-    }
-
-    /**
      * Converts a long value to int value, raising an exception if a long value was out of bounds.
      * Java does not allow an implicit conversion between long and int, explicit conversion simply looses precision.
+     * UE4 has many implicit long-to-int casts
      *
      * @param value Long value to be converted to int.
      * @return Integer value.
@@ -73,6 +58,12 @@ public class Misc
         return (int)value;
     }
 
+    /**
+     * Converts a boolean to an integer (since java has to implicit boolean to int cast).
+     *
+     * @param value Value to be converted.
+     * @return Integer value.
+     */
     public static int toInt(final boolean value)
     {
         return value ? 1 : 0;
@@ -89,52 +80,31 @@ public class Misc
         return booleanValue ? (byte)1 : (byte)0;
     }
 
-    @SuppressWarnings("ConstantConditions")
-    static void deleteFiles(Collection<File> tempFiles)
+    @SuppressWarnings("StringConcatenationInLoop")
+    public static void deleteFiles(final Collection<File> tempFiles)
     {
-        List<String> deleteFailures = Collections.emptyList();
+        // Should NOT be replaced with StringBuilder because errors are unlikely,
+        // So there's not reason to create an extra string builder for an error case.
+        String deleteFailures = "";
 
-        for (File file : tempFiles)
+        for (final File file : tempFiles)
         {
             if (file != null)
             {
-                final String name = file.getName();
-
                 final boolean ableToDelete = file.delete();
                 if (!ableToDelete)
                 {
-                    if (deleteFailures == Collections.EMPTY_LIST)
-                        deleteFailures = new ArrayList<>();
+                    final String name = file.getName();
 
-                    deleteFailures.add("Unable to delete \"" + name + "\"");
+                    if (!deleteFailures.isEmpty())
+                        deleteFailures += System.lineSeparator();
+
+                    deleteFailures += " >\"" + name + "\"";
                 }
-            }
-            else
-            {
-                if (deleteFailures == Collections.EMPTY_LIST)
-                    deleteFailures = new ArrayList<>();
-
-                deleteFailures.add("File is null, unable to delete");
             }
         }
 
         // Display message if some deleteFailures (delete deleteFailures are non-fatal?)
-        if (!deleteFailures.isEmpty())
-        {
-            final StringJoiner sj = new StringJoiner(System.lineSeparator());
-
-            sj.add("Some error(s) occurred deleting temporary files:");
-
-            for (String failure : deleteFailures)
-                sj.add(" >" + failure);
-        }
-    }
-
-    public static void callConsumerSaturated(DoubleConsumer consumer, double value)
-    {
-        if (consumer != null)
-        {
-            consumer.accept(Math.max(Math.min(value, 1.0), 0.0));
-        }
+        System.err.println("Unable to delete following files:\n" + deleteFailures);
     }
 }

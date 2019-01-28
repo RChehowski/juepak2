@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak.ue4;
+package eu.chakhouski.juepak.util;
 
 import java.util.Objects;
 

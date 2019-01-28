@@ -64,7 +64,7 @@ public class PakExtractor
         // Deserialize header once again
         final long entrySerializedSize = entry.GetSerializedSize(PakInfo.Version);
 
-        checkEntry.Clean();
+        checkEntry.clean();
         checkEntry.Deserialize(SourceChannel.map(MapMode.READ_ONLY, entry.Offset, entrySerializedSize), PakInfo.Version);
 
         // Compare entries

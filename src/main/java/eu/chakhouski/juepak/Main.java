@@ -1,8 +1,9 @@
 package eu.chakhouski.juepak;
 
+import eu.chakhouski.juepak.packer.Packer;
+import eu.chakhouski.juepak.packer.PakEntryParameters;
 import eu.chakhouski.juepak.pak.FPakFile;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.util.Packer;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,7 +49,7 @@ public class Main
 
         // Add files to pack
         for (Path path : pathsToPack)
-            packer.add(path, new Packer.PackParameters().compress());
+            packer.add(path, new PakEntryParameters().compress());
 
 
         packer.addProgressListener(p -> System.out.println("Packing: " + p * 100.0f + "%"));
@@ -58,7 +59,7 @@ public class Main
         try (final FPakFile fPakFile = new FPakFile(archiveFile.toString()))
         {
             for (FPakFile.Entry entry : fPakFile) {
-                entry.extractMixed(extractDirectory, x -> System.out.println("Ectracting: " + x * 100.0f + "%"));
+                entry.extractMixed(extractDirectory, x -> System.out.println("Extracting: " + x * 100.0f + "%"));
             }
         }
     }

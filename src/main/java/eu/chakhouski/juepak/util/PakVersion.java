@@ -1,7 +1,6 @@
-package eu.chakhouski.juepak.ue4;
+package eu.chakhouski.juepak.util;
 
 import eu.chakhouski.juepak.pak.FPakInfo;
-import eu.chakhouski.juepak.util.Range;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

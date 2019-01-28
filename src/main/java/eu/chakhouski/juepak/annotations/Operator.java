@@ -13,10 +13,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 public @interface Operator
 {
-    String NOT = "!";
-    String EQ = "==";
-    String NEQ = "!=";
-
     String BOOL = "bool";
 
     String value();

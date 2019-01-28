@@ -1,4 +1,4 @@
-package eu.chakhouski.juepak.util;
+package eu.chakhouski.juepak.packer;
 
 import eu.chakhouski.juepak.pak.FPakCompressedBlock;
 import eu.chakhouski.juepak.pak.FPakEntry;
@@ -7,7 +7,9 @@ import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FSHA1;
-import eu.chakhouski.juepak.ue4.PakVersion;
+import eu.chakhouski.juepak.util.Misc;
+import eu.chakhouski.juepak.util.PathUtils;
+import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.io.Closeable;
 import java.io.File;
@@ -66,31 +68,38 @@ public class Packer implements Closeable
      * Small raw data buffer.
      */
     private final byte[] sharedReadBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
+
     /**
      * A larger deflated data buffer.
      */
     private final byte[] sharedWriteBuffer = new byte[MAX_COMPRESSED_BUFFER_SIZE];
+
     /**
      * Key bytes MUST BE NULLIFIED when decryption is done.
      * This should be done in the finally{} block to clear cached data even if the exception was thrown.
      */
     private final byte[] sharedKeyBytes = new byte[32];
+
     /**
      * Shared deflate state machine.
      */
     private final Deflater sharedDeflater = new Deflater();
+
     /**
      * List of all attached progress listeners.
      */
     private final List<DoubleConsumer> progressListeners = new ArrayList<>();
+
     /**
-     * Packer setup, initialized once
+     * packer setup, initialized once
      */
     private final PackerSetup setup;
+
     /**
      * Raw paths to add (both uniqueness and order are guaranteed)
      */
-    private final Map<Path, PackParameters> paths = new LinkedHashMap<>();
+    private final Map<Path, PakEntryParameters> paths = new LinkedHashMap<>();
+
     /**
      * A flag, determine whether the packer was closed.
      */
@@ -104,7 +113,7 @@ public class Packer implements Closeable
      *
      * @param packerSetup A setup to be used as initial parameters/
      */
-    private Packer(PackerSetup packerSetup)
+    Packer(PackerSetup packerSetup)
     {
         this.setup = packerSetup;
     }
@@ -123,7 +132,7 @@ public class Packer implements Closeable
     @SuppressWarnings("unused")
     public void add(Path path)
     {
-        add(path, PackParameters.sharedDefaultParameters());
+        add(path, PakEntryParameters.sharedDefaultParameters());
     }
 
     /**
@@ -132,21 +141,21 @@ public class Packer implements Closeable
      * @param path   Path to a file to be packed into an archive.
      * @param params Packing parameters.
      */
-    public void add(Path path, PackParameters params)
+    public void add(Path path, PakEntryParameters params)
     {
         ensureNotClosed();
 
         // Perform some runtime checks
-        if ((setup.pakVersion < FPakInfo.PakFile_Version_DeleteRecords) && params.deleteRecord)
+        if ((setup.getPakVersion() < FPakInfo.PakFile_Version_DeleteRecords) && params.entryIsDeleteRecord())
         {
             throw new IllegalArgumentException("Delete Record is not supported for the pak version: " +
-                    FPakInfo.pakFileVersionToString(setup.pakVersion));
+                    FPakInfo.pakFileVersionToString(setup.getPakVersion()));
         }
 
-        if ((setup.pakVersion < FPakInfo.PakFile_Version_CompressionEncryption) && (params.compress || params.encrypt))
+        if ((setup.getPakVersion() < FPakInfo.PakFile_Version_CompressionEncryption) && (params.entryShouldBeCompressed() || params.entryShouldBeEncrypted()))
         {
             throw new IllegalArgumentException("Neither compression nor encryption are not supported for the pak version: " +
-                    FPakInfo.pakFileVersionToString(setup.pakVersion));
+                    FPakInfo.pakFileVersionToString(setup.getPakVersion()));
         }
 
         paths.put(path, params);
@@ -158,14 +167,14 @@ public class Packer implements Closeable
     {
         ensureNotClosed();
 
-        final Path archivePath = setup.archivePath;
+        final Path archivePath = setup.getArchivePath();
         if (Files.isRegularFile(archivePath))
         {
             Files.delete(archivePath);
         }
 
         long bytesToBePacked = 0;
-        for (Entry<Path, Packer.PackParameters> e : paths.entrySet())
+        for (Entry<Path, PakEntryParameters> e : paths.entrySet())
         {
             bytesToBePacked += Files.size(e.getKey());
         }
@@ -180,15 +189,15 @@ public class Packer implements Closeable
             final Path commonPath = PathUtils.findCommonPath(false, paths.keySet());
             final FileChannel c = fos.getChannel();
 
-            for (final Entry<Path, PackParameters> e : paths.entrySet())
+            for (final Entry<Path, PakEntryParameters> e : paths.entrySet())
             {
                 final Path path = Objects.requireNonNull(e.getKey());
-                final PackParameters params = Objects.requireNonNull(e.getValue());
+                final PakEntryParameters params = Objects.requireNonNull(e.getValue());
 
                 try (final InputStream fis = new FileInputStream(path.toFile()))
                 {
                     final FPakEntry entry;
-                    if (params.compress)
+                    if (params.entryShouldBeCompressed())
                     {
                         entry = copyToPakCompressed(fis, c, params);
                     }
@@ -205,31 +214,22 @@ public class Packer implements Closeable
             final FPakInfo pakInfo = new FPakInfo();
             pakInfo.IndexOffset = c.position();
             pakInfo.Magic = FPakInfo.PakFile_Magic;
-            pakInfo.Version = setup.pakVersion;
-            pakInfo.bEncryptedIndex = Misc.toByte(setup.encryptIndex);
-
-            // Calculate or just get a mount point
-            final String mountPoint;
-            if (setup.customMountPoint == null)
-            {
-                throw new NullPointerException("Non-manual mount points currently not implemented");
-            }
-            else
-            {
-                mountPoint = setup.customMountPoint;
-            }
+            pakInfo.Version = setup.getPakVersion();
+            pakInfo.bEncryptedIndex = Misc.toByte(setup.pakIndexShouldBeEncrypted());
 
             // Write index
-            final ByteBuffer entriesBuffer = serializeIndex(nameEntryMap, mountPoint, pakInfo.IndexHash);
+            final ByteBuffer entriesBuffer = serializeIndex(nameEntryMap, getMountPoint(), pakInfo.IndexHash);
             c.write(entriesBuffer);
 
             // Store index size (after index was written)
             pakInfo.IndexSize = entriesBuffer.limit();
 
             // Finally, serialize index, may allocate direct buffer because we never need an array
-            final ByteBuffer infoBuffer = ByteBuffer.allocateDirect(toInt(pakInfo.GetSerializedSize(setup.pakVersion)));
+            final ByteBuffer infoBuffer = ByteBuffer.allocateDirect(toInt(pakInfo.GetSerializedSize(setup.getPakVersion())));
             pakInfo.Serialize(infoBuffer);
-            c.write((ByteBuffer) infoBuffer.flip());
+
+            infoBuffer.flip();
+            c.write(infoBuffer);
         }
         finally
         {
@@ -237,34 +237,50 @@ public class Packer implements Closeable
         }
     }
 
-    private FPakEntry copyToPakUncompressed(InputStream is, SeekableByteChannel os, PackParameters params) throws IOException
+    /**
+     * Calculate or just retrieves a mount point.
+     * NOTE: Non-custom mount points are unsupported.
+     *
+     * @return A mount point.
+     */
+    private String getMountPoint()
+    {
+        if (setup.hasCustomMountPoint())
+        {
+            return setup.getCustomMountPoint();
+        }
+        else
+        {
+            throw new NullPointerException("Non-manual mount points currently not implemented");
+        }
+    }
+
+    private FPakEntry copyToPakUncompressed(InputStream is, SeekableByteChannel os, PakEntryParameters params) throws IOException
     {
         final long entryOffset = os.position();
 
+        // Since we won't add any compression blocks, the size is constant
         final FPakEntry entry = new FPakEntry();
-        os.position(entryOffset + entry.GetSerializedSize(setup.pakVersion));
+        os.position(entryOffset + entry.GetSerializedSize(setup.getPakVersion()));
 
         sha1.reset();
 
-        final ByteBuffer buffer = ByteBuffer.wrap(sharedWriteBuffer);
-
         long readTotal = 0;
-        int readPerTransmission;
-
-        final boolean encrypt = params.encrypt;
-
         try
         {
-            if (encrypt)
+            if (params.entryShouldBeEncrypted())
             {
                 FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
             }
 
+            final ByteBuffer buffer = ByteBuffer.wrap(sharedWriteBuffer);
+
+            int readPerTransmission;
             while ((readPerTransmission = is.read(sharedWriteBuffer)) > 0)
             {
-                final int bytesToWrite = encrypt ? Align(readPerTransmission, FAES.getBlockSize()) : readPerTransmission;
+                final int bytesToWrite = params.entryShouldBeEncrypted() ? Align(readPerTransmission, FAES.getBlockSize()) : readPerTransmission;
 
-                if (encrypt)
+                if (params.entryShouldBeEncrypted())
                 {
                     // Add trailing zeroes if alignment has been applied
                     if (readPerTransmission != bytesToWrite)
@@ -276,7 +292,9 @@ public class Packer implements Closeable
                 }
 
                 sha1.update(sharedWriteBuffer, 0, readPerTransmission);
-                os.write((ByteBuffer) buffer.position(0).limit(bytesToWrite));
+
+                buffer.position(0).limit(bytesToWrite);
+                os.write(buffer);
 
                 // Increment counters
                 readTotal += readPerTransmission;
@@ -285,12 +303,12 @@ public class Packer implements Closeable
         }
         finally
         {
-            if (encrypt)
+            // Nullify key bytes for security reasons
+            if (params.entryShouldBeEncrypted())
             {
                 Arrays.fill(sharedKeyBytes, (byte) 0);
             }
         }
-
 
         // Finish entry fulfilment
         entry.Offset = entryOffset;
@@ -298,19 +316,21 @@ public class Packer implements Closeable
         entry.UncompressedSize = readTotal;
         entry.CompressionMethod = ECompressionFlags.COMPRESS_None;
 
-        try {
+        try
+        {
             sha1.digest(entry.Hash, 0, sha1.getDigestLength());
         }
-        catch (DigestException e) {
+        catch (DigestException e)
+        {
             throw new IOException(e);
         }
 
-        entry.SetEncrypted(encrypt);
+        entry.SetEncrypted(params.entryShouldBeEncrypted());
         entry.SetDeleteRecord(false); // No support yet
 
         // Serialize pak entry
-        final ByteBuffer entryBuffer = ByteBuffer.allocateDirect(toInt(entry.GetSerializedSize(setup.pakVersion)));
-        entry.Serialize(entryBuffer, setup.pakVersion);
+        final ByteBuffer entryBuffer = ByteBuffer.allocateDirect(toInt(entry.GetSerializedSize(setup.getPakVersion())));
+        entry.Serialize(entryBuffer, setup.getPakVersion());
         entryBuffer.flip();
 
         // Finally, write and restore a position
@@ -322,8 +342,7 @@ public class Packer implements Closeable
 
     private ByteBuffer serializeIndex(Map<String, FPakEntry> nameEntryMap, String mountPoint, byte[] outIndexHash)
     {
-        // 1.
-        // First pass - compute buffer size
+        // 1'st pass - compute buffer size
         int serializeSize = 0;
         serializeSize += UE4Serializer.GetSerializeSize(mountPoint);
         serializeSize += sizeof(nameEntryMap.size());
@@ -331,14 +350,13 @@ public class Packer implements Closeable
         for (Entry<String, FPakEntry> entry : nameEntryMap.entrySet())
         {
             serializeSize += UE4Serializer.GetSerializeSize(entry.getKey());
-            serializeSize += entry.getValue().GetSerializedSize(setup.pakVersion);
+            serializeSize += entry.getValue().GetSerializedSize(setup.getPakVersion());
         }
 
         // Compute buffer size (possible with serialization padding)
-        final int bufferSize = (setup.encryptIndex) ? Align(serializeSize, FAES.getBlockSize()) : serializeSize;
+        final int bufferSize = (setup.pakIndexShouldBeEncrypted()) ? Align(serializeSize, FAES.getBlockSize()) : serializeSize;
 
-        // 2.
-        // Second pass - actually serialize
+        // 2'nd pass - actually serialize
         final ByteBuffer entriesBuffer = ByteBuffer.allocate(bufferSize);
 
         UE4Serializer.Write(entriesBuffer, mountPoint);
@@ -348,7 +366,7 @@ public class Packer implements Closeable
         for (Entry<String, FPakEntry> entry : nameEntryMap.entrySet())
         {
             UE4Serializer.Write(entriesBuffer, entry.getKey());
-            entry.getValue().Serialize(entriesBuffer, setup.pakVersion);
+            entry.getValue().Serialize(entriesBuffer, setup.getPakVersion());
         }
 
         // Flip and check whether the size is correct
@@ -363,12 +381,11 @@ public class Packer implements Closeable
         FSHA1.HashBuffer(entriesBuffer.array(), bufferSize, outIndexHash);
 
         // Then encrypt if necessary
-        if (setup.encryptIndex)
+        if (setup.pakIndexShouldBeEncrypted())
         {
             entriesBuffer.limit(bufferSize);
 
-            try
-            {
+            try {
                 FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
 
                 // Add trailing zeroes if alignment has been applied
@@ -379,8 +396,7 @@ public class Packer implements Closeable
 
                 FAES.EncryptData(entriesBuffer.array(), bufferSize, sharedKeyBytes);
             }
-            finally
-            {
+            finally {
                 Arrays.fill(sharedKeyBytes, (byte) 0);
             }
         }
@@ -388,7 +404,7 @@ public class Packer implements Closeable
         return entriesBuffer;
     }
 
-    private synchronized FPakEntry copyToPakCompressed(InputStream is, SeekableByteChannel os, PackParameters params)
+    private synchronized FPakEntry copyToPakCompressed(InputStream is, SeekableByteChannel os, PakEntryParameters params)
             throws IOException
     {
         final long beginPosition = os.position();
@@ -411,11 +427,11 @@ public class Packer implements Closeable
         entry.CompressionBlockSize = MAX_COMPRESSED_BUFFER_SIZE;
 
         entry.SetDeleteRecord(false); // No support yet
-        entry.SetEncrypted(params.encrypt);
+        entry.SetEncrypted(params.entryShouldBeEncrypted());
 
         // Pak entry size is already known since we've initialized
-        final long pakEntrySize = entry.GetSerializedSize(setup.pakVersion);
-        final long baseOffset = (setup.pakVersion >= FPakInfo.PakFile_Version_RelativeChunkOffsets) ? 0 : beginPosition;
+        final long pakEntrySize = entry.GetSerializedSize(setup.getPakVersion());
+        final long baseOffset = (setup.getPakVersion() >= FPakInfo.PakFile_Version_RelativeChunkOffsets) ? 0 : beginPosition;
 
         long relativeChunkOffset = pakEntrySize;
         for (int i = 0; i < entry.CompressionBlocks.length; i++)
@@ -434,7 +450,7 @@ public class Packer implements Closeable
 
         // 1. WRITE a pak entry (header)
         final ByteBuffer entryBuffer = ByteBuffer.allocateDirect(toInt(pakEntrySize)).order(ByteOrder.LITTLE_ENDIAN);
-        entry.Serialize(entryBuffer, setup.pakVersion);
+        entry.Serialize(entryBuffer, setup.getPakVersion());
 
         entryBuffer.flip();
         os.write(entryBuffer);
@@ -452,20 +468,18 @@ public class Packer implements Closeable
                     os.write((ByteBuffer) blockBuffer.position(0).limit(numBytesRead));
                 }
             }
-
-            // Delete temporary file and weakly check
-            if (!blockFile.delete())
-            {
-                System.err.println("Warning: unable to delete: " + blockFile.toString());
-            }
         }
+
+        // Delete temporary file(s)
+        Misc.deleteFiles(compressedTempBlocks);
+
         compressedTempBlocks.clear();
 
         return entry;
     }
 
     private List<File> deflateSplit(InputStream is, final AtomicLong outUncompressedSize, final AtomicLong outCompressedSize,
-                                    byte[] outHash, PackParameters params) throws IOException
+                                    byte[] outHash, PakEntryParameters params) throws IOException
     {
         Objects.requireNonNull(outUncompressedSize);
         Objects.requireNonNull(outCompressedSize);
@@ -483,7 +497,7 @@ public class Packer implements Closeable
         boolean caughtAnException = false;
         try
         {
-            if (params.encrypt)
+            if (params.entryShouldBeEncrypted())
             {
                 if (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound())
                     throw new IllegalStateException("Unable to encrypt data, Encryption Delegate is not bound");
@@ -511,7 +525,7 @@ public class Packer implements Closeable
                     {
                         final int bytesDeflated = sharedDeflater.deflate(writeBuffer);
                         final int bytesToWrite;
-                        if (params.encrypt)
+                        if (params.entryShouldBeEncrypted())
                         {
                             bytesToWrite = Align(bytesDeflated, FAES.getBlockSize());
 
@@ -540,7 +554,6 @@ public class Packer implements Closeable
                 onBytesProcessed(bytesReadPerTransmission);
             }
 
-            // Compute final SHA1
             if (sha1.digest(outHash, 0, outHash.length) != outHash.length)
             {
                 throw new IOException("Invalid sha1 length: must be exactly " + outHash.length + " bytes");
@@ -553,7 +566,6 @@ public class Packer implements Closeable
         }
         catch (DigestException e)
         {
-            // Method has do DigestException in it's signature, so wrap into the RuntimeException
             caughtAnException = true;
             throw new IOException(e);
         }
@@ -563,17 +575,16 @@ public class Packer implements Closeable
             Arrays.fill(readBuffer, (byte) 0);
             Arrays.fill(writeBuffer, (byte) 0);
 
-            // Remove temporary files if there were any exceptions
+            if (params.entryShouldBeEncrypted())
+            {
+                Arrays.fill(sharedKeyBytes, (byte) 0);
+            }
+
+            // Remove temporary files if there were exceptions
             if (caughtAnException)
             {
                 Misc.deleteFiles(tempFiles);
                 tempFiles.clear();
-            }
-
-            // Nullify key bytes for security reasons as well
-            if (params.encrypt)
-            {
-                Arrays.fill(sharedKeyBytes, (byte) 0);
             }
         }
 
@@ -582,147 +593,30 @@ public class Packer implements Closeable
 
     private void ensureNotClosed()
     {
-        if (closed)
-        {
-            throw new UnsupportedOperationException("This packer is closed, create a new one");
-        }
+        assert !closed : "This packer is closed, create a new one";
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     private void onBytesProcessed(int numBytesProcessed)
     {
+        final int numProgressListeners = progressListeners.size();
+
+        // Compute clamped progress
         bytesProcessed += numBytesProcessed;
         final double clampedProgress = Math.min(Math.max((double) bytesProcessed / bytesTotal, 0.0), 1.0);
 
-        for (int i = 0, progressListenersSize = progressListeners.size(); i < progressListenersSize; i++)
+        // Called very frequently, so use
+        for (int i = 0; i < numProgressListeners; i++)
         {
             final DoubleConsumer progressListener = progressListeners.get(i);
+
             if (progressListener != null)
-            {
                 progressListener.accept(clampedProgress);
-            }
         }
     }
 
     public void addProgressListener(DoubleConsumer progressListener)
     {
         progressListeners.add(progressListener);
-    }
-
-    public static final class PackParameters
-    {
-        private static PackParameters defaultParameters;
-
-        private boolean encrypt;
-        private boolean deleteRecord;
-        private boolean compress;
-
-        private int deflaterHint = Deflater.DEFAULT_COMPRESSION;
-
-        @SuppressWarnings("WeakerAccess")
-        public static PackParameters sharedDefaultParameters()
-        {
-            if (defaultParameters == null)
-            {
-                defaultParameters = new PackParameters();
-            }
-
-            return defaultParameters;
-        }
-
-        public PackParameters encrypt()
-        {
-            encrypt = true;
-            return this;
-        }
-
-        public PackParameters deleteRecord()
-        {
-            deleteRecord = true;
-            return this;
-        }
-
-        /**
-         * Sets a compression ratio for the {@link java.util.zip.Deflater} instance.
-         * Accepts either
-         * - {@link java.util.zip.Deflater#NO_COMPRESSION}
-         * - {@link java.util.zip.Deflater#BEST_SPEED}
-         * - {@link java.util.zip.Deflater#BEST_COMPRESSION}
-         * - {@link java.util.zip.Deflater#DEFAULT_COMPRESSION}
-         *
-         * - Default value is {@link java.util.zip.Deflater#DEFAULT_COMPRESSION}
-         * @param value New compression ratio.
-         * @return Self.
-         */
-        public PackParameters deflaterHint(int value)
-        {
-            deflaterHint = value;
-            return this;
-        }
-
-        public PackParameters compress()
-        {
-            compress = true;
-            return this;
-        }
-    }
-
-    /**
-     * A builder used to construct a packer.
-     */
-    public static final class PackerSetup
-    {
-        private boolean encryptIndex = false;
-
-        private int pakVersion = FPakInfo.PakFile_Version_Latest;
-        private String customMountPoint = null;
-        private Path archivePath = null;
-
-        private PackerSetup()
-        {
-        }
-
-        public PackerSetup encryptIndex(boolean value)
-        {
-            encryptIndex = value;
-            return this;
-        }
-
-
-        public PackerSetup pakVersion(int value)
-        {
-            pakVersion = value;
-            return this;
-        }
-
-        public PackerSetup engineVersion(String value)
-        {
-            pakVersion = PakVersion.getByEngineVersion(value);
-            return this;
-        }
-
-        public PackerSetup customMountPoint(String value)
-        {
-            customMountPoint = value;
-            return this;
-        }
-
-        public PackerSetup archiveFile(Path value)
-        {
-            archivePath = value;
-            return this;
-        }
-
-        public Packer build()
-        {
-            // Check whether the user requested index encryption but the feature is not supported.
-            if ((pakVersion < FPakInfo.PakFile_Version_IndexEncryption) && encryptIndex)
-            {
-                throw new IllegalStateException("Unable to encrypt index, feature is not supported. Pak version is " +
-                        FPakInfo.pakFileVersionToString(pakVersion));
-            }
-
-            return new Packer(this);
-        }
     }
 }

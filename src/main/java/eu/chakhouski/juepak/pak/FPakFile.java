@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
@@ -270,7 +271,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
      *
      * @return 20 bytes of brief SHA1 checksum of the file.
      */
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "WeakerAccess"})
     @APIBridgeMethod
     public final byte[] BriefChecksumOfContent()
     {
@@ -363,26 +364,26 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
 
     public static class Entry
     {
+        /**
+         * File name within the archive. Accessible from outside.
+         */
         public final String Filename;
+
+        /**
+         * Pak entry in the archive. Accessible from outside.
+         */
         public final FPakEntry Entry;
 
         private final FPakFile pakFile;
 
-
-        public Entry(String filename, FPakEntry entry, FPakFile pakFile)
+        public Entry(Map.Entry<? extends String, ? extends FPakEntry> mapEntry, FPakFile pakFile)
         {
-            Filename = filename;
-            Entry = entry;
+            Filename = mapEntry.getKey();
+            Entry = mapEntry.getValue();
 
             this.pakFile = pakFile;
         }
 
-        public Entry(Map.Entry<? extends String, ? extends FPakEntry> mapEntry, FPakFile pakFile)
-        {
-            this(mapEntry.getKey(), mapEntry.getValue(), pakFile);
-        }
-
-        // *** API bridge ***
         @APIBridgeMethod
         public void extractMixed(String RootPath, DoubleConsumer progressConsumer) throws IOException
         {
@@ -407,46 +408,47 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
                 PakExtractor.Extract(pakFile, Entry, Channels.newChannel(FileOS), progressConsumer);
             }
         }
-//
-//        @APIBridgeMethod
-//        public void extractToMemory(final byte[] buffer) throws IOException
-//        {
-//            extractToMemory(buffer, 0);
-//        }
-//
-//        @APIBridgeMethod
-//        public void extractToMemory(final byte[] Buffer, final int Offset) throws IOException
-//        {
-//            // Perform fast check whether the drain can fit that much data
-//            final int bufferCapacity = Buffer.length - Offset;
-//            if (bufferCapacity < Entry.UncompressedSize)
-//            {
-//                throw new ArrayIndexOutOfBoundsException(
-//                        "Your buffer of " + Buffer.length + " bytes starting from position " + Offset +
-//                        " (total capacity of " + bufferCapacity + " bytes) can not fit current" +
-//                        " pak entry (file) of " + Entry.UncompressedSize + " bytes"
-//                );
-//            }
-//
-//            // Do extract
-//            PakExtractor.Extract(PakFile, Entry, Channels.newChannel(new OutputStream() {
-//                int position = 0;
-//
-//                @Override
-//                public void write(int b)
-//                {
-//                    Buffer[Offset + (position++)] = (byte)b;
-//                }
-//
-//                @Override
-//                public void write(byte[] InBuffer, int InBufferOffset, int InBufferLength)
-//                {
-//                    // the default write(int) fallback is too slow, we can instead copy bunches of bytes at once
-//                    System.arraycopy(InBuffer, InBufferOffset, Buffer, Offset + position, InBufferLength);
-//                    position += InBufferLength;
-//                }
-//            }));
-//        }
+
+        @APIBridgeMethod
+        public void extractToMemory(final byte[] buffer, DoubleConsumer progressConsumer) throws IOException
+        {
+            extractToMemory(buffer, 0, progressConsumer);
+        }
+
+        @APIBridgeMethod
+        public void extractToMemory(final byte[] Buffer, final int Offset, DoubleConsumer progressConsumer)
+                throws IOException
+        {
+            // Perform fast check whether the drain can fit that much data
+            final int bufferCapacity = Buffer.length - Offset;
+            if (bufferCapacity < Entry.UncompressedSize)
+            {
+                throw new ArrayIndexOutOfBoundsException(
+                        "Your buffer of " + Buffer.length + " bytes starting from position " + Offset +
+                        " (total capacity of " + bufferCapacity + " bytes) can not fit current" +
+                        " pak entry (file) of " + Entry.UncompressedSize + " bytes"
+                );
+            }
+
+            // Do extract
+            PakExtractor.Extract(pakFile, Entry, Channels.newChannel(new OutputStream() {
+                private int position = 0;
+
+                @Override
+                public void write(int b)
+                {
+                    Buffer[Offset + (position++)] = (byte)b;
+                }
+
+                @Override
+                public void write(byte[] InBuffer, int InBufferOffset, int InBufferLength)
+                {
+                    // the default write(int) fallback is too slow, we can instead copy bunches of bytes at once
+                    System.arraycopy(InBuffer, InBufferOffset, Buffer, Offset + position, InBufferLength);
+                    position += InBufferLength;
+                }
+            }), progressConsumer);
+        }
 
         @Override
         public boolean equals(Object o)
