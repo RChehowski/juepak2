@@ -6,7 +6,6 @@ import eu.chakhouski.juepak.annotations.JavaDecoratorMethod;
 import eu.chakhouski.juepak.annotations.Operator;
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.ECompressionFlags;
-import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
@@ -174,7 +173,7 @@ FPakEntry
         Flags = Flag_None;
         Verified = false;
 
-        FMemory.Memset(Hash, 0, sizeof(Hash));
+        Arrays.fill(Hash, (byte)0);
         return this;
     }
 
@@ -192,7 +191,7 @@ FPakEntry
             CompressionMethod == B.CompressionMethod &&
             Flags == B.Flags &&
             CompressionBlockSize == B.CompressionBlockSize &&
-            FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) == 0 &&
+            Arrays.equals(Hash, B.Hash) &&
             Arrays.deepEquals(CompressionBlocks, B.CompressionBlocks);
     }
 
@@ -210,7 +209,7 @@ FPakEntry
             CompressionMethod != B.CompressionMethod ||
             Flags != B.Flags ||
             CompressionBlockSize != B.CompressionBlockSize ||
-            FMemory.Memcmp(Hash, B.Hash, sizeof(Hash)) != 0 ||
+            !Arrays.equals(Hash, B.Hash) ||
             !Arrays.deepEquals(CompressionBlocks, B.CompressionBlocks);
     }
 

@@ -17,19 +17,6 @@ public class AlignmentTemplates
     }
 
     /**
-     * Aligns a value to the nearest lower multiple of 'Alignment', which must be a power of two.
-     *
-     * @param  Val        The value to align.
-     * @param  Alignment  The alignment value, must be a power of two.
-     *
-     * @return The value aligned down to the specified alignment.
-     */
-    public static long  AlignDown(/*T*/long Val, long Alignment)
-    {
-        return Val & -Alignment;
-    }
-
-    /**
      * Aligns a value to the nearest higher multiple of 'Alignment', which must be a power of two.
      * <int> version
      *

@@ -6,6 +6,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static eu.chakhouski.juepak.util.Misc.TEXT;
@@ -85,7 +86,7 @@ public final class FAES
                 System.arraycopy(EncryptionDecryptionBuffer, 0, Contents, Offset, AESBlockSize);
             }
 
-            FMemory.Memset(EncryptionDecryptionBuffer, 0, sizeof(EncryptionDecryptionBuffer));
+            Arrays.fill(EncryptionDecryptionBuffer, (byte) 0);
         }
         catch (GeneralSecurityException e) {
             throw new RuntimeException(e);
@@ -130,7 +131,7 @@ public final class FAES
                 System.arraycopy(EncryptionDecryptionBuffer, 0, Contents, Offset, AESBlockSize);
             }
 
-            FMemory.Memset(EncryptionDecryptionBuffer, 0, sizeof(EncryptionDecryptionBuffer));
+            Arrays.fill(EncryptionDecryptionBuffer, (byte) 0);
         }
         catch (GeneralSecurityException e) {
             throw new RuntimeException(e);

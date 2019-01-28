@@ -5,7 +5,6 @@ import eu.chakhouski.juepak.annotations.JavaDecoratorField;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
 import eu.chakhouski.juepak.ue4.FCoreDelegates.FPakEncryptionKeyDelegate;
-import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.PakExtractor;
@@ -135,7 +134,7 @@ public class FPakFile implements Iterable<FPakFile.Entry>, AutoCloseable
         FAES.DecryptData(InData, InDataSize, keyBytes);
 
         // Nullify key bytes
-        FMemory.Memset(keyBytes, 0, keyBytes.length);
+        Arrays.fill(keyBytes, (byte) 0);
     }
 
     private void Initialize(SeekableByteChannel channel) throws IOException

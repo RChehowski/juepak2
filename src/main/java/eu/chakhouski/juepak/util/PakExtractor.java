@@ -7,7 +7,6 @@ import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.ue4.FMemory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -25,7 +24,6 @@ import static eu.chakhouski.juepak.ue4.AlignmentTemplates.Align;
 import static eu.chakhouski.juepak.ue4.ECompressionFlags.StaticToString;
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toInt;
-import static eu.chakhouski.juepak.util.Sizeof.sizeof;
 
 public class PakExtractor
 {
@@ -145,7 +143,7 @@ public class PakExtractor
         // Nullify key bytes if node was encrypted
         if (bEntryIsEncrypted)
         {
-            FMemory.Memset(sharedKeyBytes, 0, sizeof(sharedKeyBytes));
+            Arrays.fill(sharedKeyBytes, (byte) 0);
         }
     }
 

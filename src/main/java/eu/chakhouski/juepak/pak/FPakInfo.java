@@ -3,13 +3,13 @@ package eu.chakhouski.juepak.pak;
 import eu.chakhouski.juepak.annotations.FStruct;
 import eu.chakhouski.juepak.annotations.StaticSize;
 import eu.chakhouski.juepak.ue4.FGuid;
-import eu.chakhouski.juepak.ue4.FMemory;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.FString;
 import eu.chakhouski.juepak.util.UE4Deserializer;
 import eu.chakhouski.juepak.util.UE4Serializer;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import static eu.chakhouski.juepak.util.Bool.BOOL;
 import static eu.chakhouski.juepak.util.Misc.toByte;
@@ -95,13 +95,13 @@ public class FPakInfo
      */
     public FPakInfo()
     {
-		this.Magic = PakFile_Magic;
-		this.Version = PakFile_Version_Latest;
-		this.IndexOffset = -1;
-		this.IndexSize = 0;
-		//this.bEncryptedIndex = 0;
+        this.Magic = PakFile_Magic;
+        this.Version = PakFile_Version_Latest;
+        this.IndexOffset = -1;
+        this.IndexSize = 0;
+        //this.bEncryptedIndex = 0;
 
-        FMemory.Memset(IndexHash, 0, sizeof(IndexHash));
+        Arrays.fill(IndexHash, (byte) 0);
     }
 
     /**

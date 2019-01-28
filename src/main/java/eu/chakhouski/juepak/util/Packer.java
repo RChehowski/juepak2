@@ -6,7 +6,6 @@ import eu.chakhouski.juepak.pak.FPakInfo;
 import eu.chakhouski.juepak.ue4.ECompressionFlags;
 import eu.chakhouski.juepak.ue4.FAES;
 import eu.chakhouski.juepak.ue4.FCoreDelegates;
-import eu.chakhouski.juepak.ue4.FMath;
 import eu.chakhouski.juepak.ue4.FSHA1;
 import eu.chakhouski.juepak.ue4.PakVersion;
 
@@ -191,11 +190,11 @@ public class Packer implements Closeable
                     final FPakEntry entry;
                     if (params.compress)
                     {
-                        entry = copyToPakCompressed(fis, c, params.encrypt);
+                        entry = copyToPakCompressed(fis, c, params);
                     }
                     else
                     {
-                        entry = copyToPakUncompressed(fis, c, params.encrypt);
+                        entry = copyToPakUncompressed(fis, c, params);
                     }
 
                     nameEntryMap.put(PathUtils.pathToPortableUE4String(commonPath.relativize(path)), entry);
@@ -211,10 +210,14 @@ public class Packer implements Closeable
 
             // Calculate or just get a mount point
             final String mountPoint;
-            if (setup.customMountPoint != null)
-                mountPoint = setup.customMountPoint;
-            else
+            if (setup.customMountPoint == null)
+            {
                 throw new NullPointerException("Non-manual mount points currently not implemented");
+            }
+            else
+            {
+                mountPoint = setup.customMountPoint;
+            }
 
             // Write index
             final ByteBuffer entriesBuffer = serializeIndex(nameEntryMap, mountPoint, pakInfo.IndexHash);
@@ -234,7 +237,7 @@ public class Packer implements Closeable
         }
     }
 
-    private FPakEntry copyToPakUncompressed(InputStream is, SeekableByteChannel os, boolean encrypt) throws IOException
+    private FPakEntry copyToPakUncompressed(InputStream is, SeekableByteChannel os, PackParameters params) throws IOException
     {
         final long entryOffset = os.position();
 
@@ -248,38 +251,46 @@ public class Packer implements Closeable
         long readTotal = 0;
         int readPerTransmission;
 
-        if (encrypt)
-        {
-            FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
-        }
+        final boolean encrypt = params.encrypt;
 
-        while ((readPerTransmission = is.read(sharedWriteBuffer)) > 0)
+        try
         {
-            final int bytesToWrite = encrypt ? Align(readPerTransmission, FAES.getBlockSize()) : readPerTransmission;
-
             if (encrypt)
             {
-                // Add trailing zeroes if alignment has been applied
-                if (readPerTransmission != bytesToWrite)
-                {
-                    Arrays.fill(sharedWriteBuffer, readPerTransmission, bytesToWrite, (byte) 0);
-                }
-
-                FAES.EncryptData(sharedWriteBuffer, bytesToWrite, sharedKeyBytes);
+                FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
             }
 
-            sha1.update(sharedWriteBuffer, 0, readPerTransmission);
-            os.write((ByteBuffer) buffer.position(0).limit(bytesToWrite));
+            while ((readPerTransmission = is.read(sharedWriteBuffer)) > 0)
+            {
+                final int bytesToWrite = encrypt ? Align(readPerTransmission, FAES.getBlockSize()) : readPerTransmission;
 
-            // Increment counters
-            readTotal += readPerTransmission;
-            onBytesProcessed(readPerTransmission);
+                if (encrypt)
+                {
+                    // Add trailing zeroes if alignment has been applied
+                    if (readPerTransmission != bytesToWrite)
+                    {
+                        Arrays.fill(sharedWriteBuffer, readPerTransmission, bytesToWrite, (byte) 0);
+                    }
+
+                    FAES.EncryptData(sharedWriteBuffer, bytesToWrite, sharedKeyBytes);
+                }
+
+                sha1.update(sharedWriteBuffer, 0, readPerTransmission);
+                os.write((ByteBuffer) buffer.position(0).limit(bytesToWrite));
+
+                // Increment counters
+                readTotal += readPerTransmission;
+                onBytesProcessed(readPerTransmission);
+            }
         }
-
-        if (encrypt)
+        finally
         {
-            Arrays.fill(sharedKeyBytes, (byte) 0);
+            if (encrypt)
+            {
+                Arrays.fill(sharedKeyBytes, (byte) 0);
+            }
         }
+
 
         // Finish entry fulfilment
         entry.Offset = entryOffset;
@@ -377,7 +388,7 @@ public class Packer implements Closeable
         return entriesBuffer;
     }
 
-    private synchronized FPakEntry copyToPakCompressed(InputStream is, SeekableByteChannel os, boolean encrypt)
+    private synchronized FPakEntry copyToPakCompressed(InputStream is, SeekableByteChannel os, PackParameters params)
             throws IOException
     {
         final long beginPosition = os.position();
@@ -389,7 +400,7 @@ public class Packer implements Closeable
         final FPakEntry entry = new FPakEntry();
 
         // Split our data into compressed (and maybe encrypted) chunks
-        final List<File> compressedTempBlocks = deflateSplit(is, uncompressedSize, compressedSize, entry.Hash, encrypt);
+        final List<File> compressedTempBlocks = deflateSplit(is, uncompressedSize, compressedSize, entry.Hash, params);
 
         // Setup an entry
         entry.Offset = beginPosition;
@@ -400,7 +411,7 @@ public class Packer implements Closeable
         entry.CompressionBlockSize = MAX_COMPRESSED_BUFFER_SIZE;
 
         entry.SetDeleteRecord(false); // No support yet
-        entry.SetEncrypted(encrypt);
+        entry.SetEncrypted(params.encrypt);
 
         // Pak entry size is already known since we've initialized
         final long pakEntrySize = entry.GetSerializedSize(setup.pakVersion);
@@ -454,23 +465,11 @@ public class Packer implements Closeable
     }
 
     private List<File> deflateSplit(InputStream is, final AtomicLong outUncompressedSize, final AtomicLong outCompressedSize,
-                                    byte[] outHash, boolean encrypt) throws IOException
+                                    byte[] outHash, PackParameters params) throws IOException
     {
         Objects.requireNonNull(outUncompressedSize);
         Objects.requireNonNull(outCompressedSize);
         Objects.requireNonNull(outHash);
-
-        if (encrypt)
-        {
-            if (FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound())
-            {
-                FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
-            }
-            else
-            {
-                throw new IllegalStateException("Unable to encrypt data, Encryption Delegate is not bound");
-            }
-        }
 
         final List<File> tempFiles = new ArrayList<>();
 
@@ -484,11 +483,20 @@ public class Packer implements Closeable
         boolean caughtAnException = false;
         try
         {
+            if (params.encrypt)
+            {
+                if (!FCoreDelegates.GetPakEncryptionKeyDelegate().IsBound())
+                    throw new IllegalStateException("Unable to encrypt data, Encryption Delegate is not bound");
+
+                FCoreDelegates.GetPakEncryptionKeyDelegate().Execute(sharedKeyBytes);
+            }
+
             int bytesReadPerTransmission;
             while ((bytesReadPerTransmission = is.read(readBuffer, 0, MAX_COMPRESSED_BUFFER_SIZE)) > 0)
             {
                 // Prepare deflate
                 sharedDeflater.reset();
+                sharedDeflater.setLevel(params.deflaterHint);
                 sharedDeflater.setInput(readBuffer, 0, bytesReadPerTransmission);
                 sharedDeflater.finish();
 
@@ -503,7 +511,7 @@ public class Packer implements Closeable
                     {
                         final int bytesDeflated = sharedDeflater.deflate(writeBuffer);
                         final int bytesToWrite;
-                        if (encrypt)
+                        if (params.encrypt)
                         {
                             bytesToWrite = Align(bytesDeflated, FAES.getBlockSize());
 
@@ -563,7 +571,7 @@ public class Packer implements Closeable
             }
 
             // Nullify key bytes for security reasons as well
-            if (encrypt)
+            if (params.encrypt)
             {
                 Arrays.fill(sharedKeyBytes, (byte) 0);
             }
@@ -584,7 +592,7 @@ public class Packer implements Closeable
     private void onBytesProcessed(int numBytesProcessed)
     {
         bytesProcessed += numBytesProcessed;
-        final double clampedProgress = FMath.Clamp((double) bytesProcessed / bytesTotal, 0.0, 1.0);
+        final double clampedProgress = Math.min(Math.max((double) bytesProcessed / bytesTotal, 0.0), 1.0);
 
         for (int i = 0, progressListenersSize = progressListeners.size(); i < progressListenersSize; i++)
         {
@@ -609,7 +617,7 @@ public class Packer implements Closeable
         private boolean deleteRecord;
         private boolean compress;
 
-        private int deflterHint = Deflater.DEFAULT_COMPRESSION;
+        private int deflaterHint = Deflater.DEFAULT_COMPRESSION;
 
         @SuppressWarnings("WeakerAccess")
         public static PackParameters sharedDefaultParameters()
@@ -634,9 +642,21 @@ public class Packer implements Closeable
             return this;
         }
 
+        /**
+         * Sets a compression ratio for the {@link java.util.zip.Deflater} instance.
+         * Accepts either
+         * - {@link java.util.zip.Deflater#NO_COMPRESSION}
+         * - {@link java.util.zip.Deflater#BEST_SPEED}
+         * - {@link java.util.zip.Deflater#BEST_COMPRESSION}
+         * - {@link java.util.zip.Deflater#DEFAULT_COMPRESSION}
+         *
+         * - Default value is {@link java.util.zip.Deflater#DEFAULT_COMPRESSION}
+         * @param value New compression ratio.
+         * @return Self.
+         */
         public PackParameters deflaterHint(int value)
         {
-            deflterHint = value;
+            deflaterHint = value;
             return this;
         }
 

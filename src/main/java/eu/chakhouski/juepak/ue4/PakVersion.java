@@ -8,7 +8,6 @@ import java.util.Map;
 
 public class PakVersion
 {
-
     @SuppressWarnings("SameParameterValue")
     private static UnrealEngineVersion version(int maj, int min, int ptc)
     {
